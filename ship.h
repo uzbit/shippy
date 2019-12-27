@@ -3,22 +3,26 @@
 #define _SHIP_H_
 
 #include "geom.h"
+#include "object.h"
 
-class Ship{
+class Ship : public Object{
 
     public:
     Ship();
-    Ship(int x, int y, float fuel, float mass);
+    Ship(float x, float y, float fuel, float mass);
     ~Ship();
 
-
+    void update();
+    void thrust_vertical(float scale);
+    void thrust_horizontal(float scale);
     void draw();
 
-    private:
-    Point center;
-    float fuel;
-    float mass;
+    Point vel;
+    Point accel;
     
+    float mass;
+    float fuel, fuel_start;
+    float thrustx, thrusty;
 };
 
 

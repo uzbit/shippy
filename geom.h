@@ -3,18 +3,17 @@
 
 class Point{
     public:
-    Point(){};
-    Point(int x, int y):x(x), y(y){}
+    Point():x(0), y(0){};
+    Point(float x, float y):x(x), y(y){}
     ~Point(){};
 
-    
-    int x, y;
+    float x, y;
 };
 
 class Line{
     public:
     Line(){};
-    Line(int xa, int ya, int xb, int yb){
+    Line(float xa, float ya, float xb, float yb){
         a.x=xa;
         a.y=ya;
         b.x=xb;
@@ -25,5 +24,24 @@ class Line{
 
     Point a, b;
 };
+
+class Rect{
+    public:
+    Rect(){};
+    Rect(float tlx, float tly, float brx, float bry){
+        tl.x=tlx;
+        tl.y=tly;
+        br.x=brx;
+        br.y=bry;
+    }
+    ~Rect(){};
+
+
+    Point tl, br;
+};
+
+
+
+
 
 #endif

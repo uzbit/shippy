@@ -6,13 +6,9 @@
 #include "defines.h"
 #include "game.h"
 
-void Game::abort(const char* message)
-{
-    printf("%s \n", message);
-    shutdown();
-    exit(1);
+Game::~Game(){
 }
- 
+
 void Game::init_graphics(void)
 {
     if (!al_init())
@@ -40,22 +36,19 @@ void Game::init_graphics(void)
     al_init_primitives_addon();
     done = false;
 }
- 
-void Game::shutdown(void)
-{
-    if (timer)
-        al_destroy_timer(timer);
- 
-    if (display)
-        al_destroy_display(display);
- 
-    if (event_queue)
-        al_destroy_event_queue(event_queue);
+
+void Game::init_game(void){
+    ship = new Ship(WINDOW_WIDTH/2, WINDOW_HEIGHT/2, 200, 10000);
 }
- 
-void Game::update_graphics()
+  
+void Game::update_graphics(void)
 {
-    al_draw_line(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, al_map_rgb(255, 255, 2), 10);
+    ship->draw();
+
+}
+
+void Game::update_game(void){
+    ship->update();
 }
 
 void Game::loop(void)
@@ -69,13 +62,33 @@ void Game::loop(void)
  
         if (event.type == ALLEGRO_EVENT_TIMER) {
             redraw = true;
-            //update_logic();
+            update_game();
         }
         else if (event.type == ALLEGRO_EVENT_KEY_DOWN) {
-            if (event.keyboard.keycode == ALLEGRO_KEY_ESCAPE) {
-                done = true;
+            
+            switch(event.keyboard.keycode)
+            {
+                case ALLEGRO_KEY_ESCAPE:
+                    done = true;
+                    break;
+                case ALLEGRO_KEY_RIGHT:
+                    ship->thrust_horizontal(1);
+                    break;
+                case ALLEGRO_KEY_LEFT:
+                    ship->thrust_horizontal(-1);
+                    break;
+                case ALLEGRO_KEY_UP:
+                    ship->thrust_vertical(-1);
+                    break;
+                case ALLEGRO_KEY_DOWN:
+                    ship->thrust_vertical(1);
+                    break;
+                case ALLEGRO_KEY_SPACE:
+                    break;
+                case ALLEGRO_KEY_DELETE:
+                    break;
             }
-            //get_user_input();
+            
         }
  
         if (redraw && al_is_event_queue_empty(event_queue)) {
@@ -85,4 +98,25 @@ void Game::loop(void)
             al_flip_display();
         }
     }
+}
+
+void Game::abort(const char* message)
+{
+    printf("%s \n", message);
+    shutdown();
+    exit(1);
+}
+
+void Game::shutdown(void)
+{
+    if (timer)
+        al_destroy_timer(timer);
+ 
+    if (display)
+        al_destroy_display(display);
+ 
+    if (event_queue)
+        al_destroy_event_queue(event_queue);
+
+    al_shutdown_primitives_addon();
 }

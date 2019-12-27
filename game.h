@@ -2,6 +2,7 @@
 #define _GAME_H_
 
 #include <allegro5/allegro5.h>
+#include "ship.h"
 
 class Game{
 
@@ -9,12 +10,12 @@ class Game{
     Game(){};
     ~Game();
 
-
-    void abort(const char* message);
     void init_graphics(void);
     void init_game(void);
     void update_graphics(void);
+    void update_game(void);
     void loop(void);
+    void abort(const char* message);
     void shutdown(void);
 
     private:
@@ -23,6 +24,8 @@ class Game{
     ALLEGRO_TIMER* timer;
     ALLEGRO_DISPLAY* display;
 
+    Ship *ship;
+    
 };
 
 

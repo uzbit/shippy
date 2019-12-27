@@ -1,22 +1,77 @@
 
 #include <allegro5/allegro5.h>
 #include <allegro5/allegro_primitives.h>
+#include <iostream>
+
+using namespace std;
 
 #include "ship.h"
 #include "geom.h"
+#include "defines.h"
+
 
 Ship::Ship(){
+    cout << "Here"<< endl;
+}
+Ship::~Ship(){cout << "end" << endl;}
 
+Ship::Ship(float x, float y, float fuel, float mass)
+:fuel(fuel), mass(mass){
+    pos.x=x;
+    pos.y=y;
+    width = 10;
+    height = 40;
+    thrustx = 2500.0;
+    thrusty = 10000.0;
+    fuel_start = fuel;
+    width2 = width/2;
+    height2 = height/2;
 }
 
-Ship::Ship(int x, int y, float fuel, float mass)
-:fuel(fuel), mass(mass){
-    center.x=x;
-    center.y=y;
+void Ship::thrust_horizontal(float scale){
+    if (fuel > 0){
+        accel.x = scale*thrustx/(mass + fuel*FUEL_MASS);
+        fuel -= HORIZONTAL_FUEL_CONSUMPTION;
+    }
+    if (fuel < 0) fuel = 0;
+    cout << "ACCELX " << accel.x << endl;
+}
+void Ship::thrust_vertical(float scale){
+    if (fuel > 0){
+        accel.y = scale*thrusty/(mass + fuel*FUEL_MASS);
+        fuel -= VERTICAL_FUEL_CONSUMPTION;
+    }
+    if (fuel < 0) fuel = 0;
+    cout << "ACCELY " << accel.y << endl;
+}
+
+void Ship::update(void){
+    pos.x += vel.x;
+    pos.y += vel.y;
+    vel.x += accel.x;
+    vel.y += GRAVITY + accel.y;
+    accel.x = 0;
+    accel.y = 0;
 }
 
 void Ship::draw(void){
 
-
+    //al_draw_line(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, , 10);
+    //cout << pos.x << " " << pos.y << endl;
+    Rect rect = computeRect();
+    float thick = 4;
+    al_draw_rounded_rectangle(
+        rect.tl.x, rect.tl.y, rect.br.x, rect.br.y,
+        1, 1, al_map_rgb(255, 255, 2), thick
+    );
+    
+    if (fuel > 0){
+        float fuel_ratio = (fuel_start - fuel)/fuel_start;
+        float tly = (rect.br.y-thick/2 - rect.tl.y+thick/2)*fuel_ratio + rect.tl.y+thick/2;
+        al_draw_filled_rectangle(
+            rect.tl.x+thick/2, tly, rect.br.x-thick/2, rect.br.y-thick/2,
+            al_map_rgb(255, 30, 2)
+        );
+    }
 
 }
