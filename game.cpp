@@ -5,6 +5,7 @@
 
 #include "defines.h"
 #include "game.h"
+#include "space.h"
 
 Game::~Game(){
 }
@@ -39,11 +40,20 @@ void Game::init_graphics(void)
 
 void Game::init_game(void){
     ship = new Ship(WINDOW_WIDTH/2, WINDOW_HEIGHT/2, 200, 10000);
+    add_space(0, 0);
 }
-  
+
+void Game::add_space(int coordx, int coordy){
+    Space space = Space(rand()%10 + 1, coordx, coordy);
+    space.init();
+    spaces.push_back(space); 
+}  
+
 void Game::update_graphics(void)
 {
     ship->draw();
+    for (int i = 0; i < spaces.size(); i++)
+        spaces[i].draw();
 
 }
 

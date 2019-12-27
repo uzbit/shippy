@@ -16,16 +16,16 @@ Ship::Ship(){
 Ship::~Ship(){cout << "end" << endl;}
 
 Ship::Ship(float x, float y, float fuel, float mass)
-:fuel(fuel), mass(mass){
+:Object(x, y, 10, 40), fuel(fuel), mass(mass){
     pos.x=x;
     pos.y=y;
-    width = 10;
-    height = 40;
+    // width = 10;
+    // height = 40;
     thrustx = 2500.0;
     thrusty = 10000.0;
     fuel_start = fuel;
-    width2 = width/2;
-    height2 = height/2;
+    // width2 = width/2;
+    // height2 = height/2;
 }
 
 void Ship::thrust_horizontal(float scale){
@@ -67,7 +67,7 @@ void Ship::draw(void){
     
     if (fuel > 0){
         float fuel_ratio = (fuel_start - fuel)/fuel_start;
-        float tly = (rect.br.y-thick/2 - rect.tl.y+thick/2)*fuel_ratio + rect.tl.y+thick/2;
+        float tly = (rect.br.y-thick/2) - ((rect.br.y-thick/2) - (rect.tl.y+thick/2))*(1-fuel_ratio);
         al_draw_filled_rectangle(
             rect.tl.x+thick/2, tly, rect.br.x-thick/2, rect.br.y-thick/2,
             al_map_rgb(255, 30, 2)

@@ -6,6 +6,7 @@
 class Object{
     public:
     Object(){}
+    Object(float x, float y, float width, float height);
     ~Object(){}
 
     bool collides(Object *obj){
@@ -22,7 +23,6 @@ class Object{
 
 
     Point pos;
-    
     float width, height;
     float width2, height2;
 
