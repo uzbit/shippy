@@ -3,33 +3,39 @@
 #include <allegro5/allegro_primitives.h>
 #include <iostream>
 
-using namespace std;
-
 #include "ship.h"
 #include "geom.h"
 #include "defines.h"
 
+using namespace std;
 
 Ship::Ship(){
 }
 Ship::~Ship(){}
 
 Ship::Ship(float x, float y, float fuel, float mass)
-:Object(x, y, 10, 40), fuel(fuel), mass(mass){
+:Object(x, y, 10, 40), fuel(fuel), mass(mass), thick(4){
     pos.x=x;
     pos.y=y;
-    thrustx = 2500.0;
-    thrusty = 10000.0;
+    thrustx = 250.0;
+    thrusty = 1000.0;
     fuel_start = fuel;
+    thrust_dir = NONE;
+    memset(flame_counter, 0, sizeof(flame_counter));
 }
 
 void Ship::thrust_horizontal(float scale){
     if (fuel > 0){
         accel.x = scale*thrustx/(mass + fuel*FUEL_MASS);
         fuel -= HORIZONTAL_FUEL_CONSUMPTION;
-        if (scale < 0) thrust_dir = LEFT;
-        if (scale > 0) thrust_dir = RIGHT;
-        
+        if (scale < 0){
+            thrust_dir |= LEFT;
+            flame_counter[0] = 0;
+        }
+        if (scale > 0){
+            thrust_dir |= RIGHT;
+            flame_counter[1] = 0;
+        }
     }
     if (fuel < 0){
         fuel = 0;
@@ -41,14 +47,19 @@ void Ship::thrust_vertical(float scale){
     if (fuel > 0){
         accel.y = scale*thrusty/(mass + fuel*FUEL_MASS);
         fuel -= VERTICAL_FUEL_CONSUMPTION;
-        if (scale < 0) thrust_dir = UP;
-        if (scale > 0) thrust_dir = DOWN;
+        if (scale < 0){
+            thrust_dir |= UP;
+            flame_counter[2] = 0;
+        }
+        if (scale > 0){
+            thrust_dir |= DOWN;
+            flame_counter[3] = 0;
+        }
     }
     if (fuel < 0){
         fuel = 0;
         thrust_dir = NONE;
     } 
-    
     cout << "ACCELY " << accel.y << endl;
 }
 
@@ -61,33 +72,47 @@ void Ship::update(void){
     accel.y = 0;
 }
 
+void Ship::draw_flame(ALLEGRO_TRANSFORM *transform){
+    al_use_transform(transform);
+    al_draw_filled_triangle(-15, 0, 0, width2, 0, -width2, al_map_rgb(25, 200, 2));
+    al_identity_transform(transform);
+    al_use_transform(transform); 
+}
+
+void Ship::draw_flames(void){
+    
+    if (thrust_dir != NONE){
+        ALLEGRO_TRANSFORM transform;
+        if (thrust_dir & LEFT){
+            al_build_transform(&transform, pos.x+width2+thick/2, pos.y, 1, 1, -3.14159);
+            draw_flame(&transform); 
+            flame_counter[0]++;
+        }
+        if (thrust_dir & RIGHT){
+            al_build_transform(&transform, pos.x-width2-thick/2, pos.y, 1, 1, 0);
+            draw_flame(&transform);
+            flame_counter[1]++;    
+        }               
+        if (thrust_dir & UP){
+            al_build_transform(&transform, pos.x, pos.y+height2+thick/2, 1, 1, -3.14159/2);
+            draw_flame(&transform);
+            flame_counter[2]++; 
+        }
+        if (thrust_dir & DOWN){
+            al_build_transform(&transform, pos.x, pos.y-height2-thick/2, 1, 1, 3.14159/2);
+            draw_flame(&transform);
+            flame_counter[3]++; 
+        }
+        
+    }
+}
+
 void Ship::draw(void){
 
-    float thick = 4;
     
     computeRect();
     
-    ALLEGRO_TRANSFORM transform;
-    switch(thrust_dir){
-        case RIGHT:
-            al_build_transform(&transform, pos.x-width2-thick/2, pos.y, 1, 1, 0);
-            break;
-        case LEFT:
-            al_build_transform(&transform, pos.x+width2+thick/2, pos.y, 1, 1, -3.14159);
-            break;
-        case UP:
-            al_build_transform(&transform, pos.x, pos.y+height2+thick/2, 1, 1, -3.14159/2);
-            break;
-        case DOWN:
-            al_build_transform(&transform, pos.x, pos.y-height2-thick/2, 1, 1, 3.14159/2);
-            break;
-        default:
-            al_identity_transform(&transform);
-    }
-    al_use_transform(&transform);
-    al_draw_filled_triangle(-15, 0, 0, 10, 0, -10, al_map_rgb(25, 200, 2));
-    al_identity_transform(&transform);
-    al_use_transform(&transform);
+    draw_flames();
     
     al_draw_rounded_rectangle(
         rect.tl.x, rect.tl.y, rect.br.x, rect.br.y,
@@ -102,6 +127,14 @@ void Ship::draw(void){
             al_map_rgb(255, 30, 2)
         );
     }
-    thrust_dir = NONE;
+    
+    if (flame_counter[0] >= 3)
+        thrust_dir &= !LEFT;
+    if (flame_counter[1] >= 3)
+        thrust_dir &= !RIGHT;
+    if (flame_counter[2] >= 3)
+        thrust_dir &= !UP;
+    if (flame_counter[3] >= 3)
+        thrust_dir &= !DOWN;
     
 }

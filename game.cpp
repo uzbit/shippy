@@ -7,6 +7,7 @@
 #include "defines.h"
 #include "game.h"
 #include "space.h"
+#include "ship.h"
 
 using namespace std;
 
@@ -139,17 +140,29 @@ void Game::loop(void)
 {
     bool redraw = true;
     al_start_timer(timer);
- 
+    ALLEGRO_KEYBOARD_STATE keys;
     while (!done) {
         ALLEGRO_EVENT event;
         al_wait_for_event(event_queue, &event);
- 
+        al_get_keyboard_state(&keys);
+        
         if (event.type == ALLEGRO_EVENT_TIMER) {
             redraw = true;
             update_game();
         }
+        if (al_key_down(&keys, ALLEGRO_KEY_UP))
+            ship->thrust_vertical(-1);
+        if (al_key_down(&keys, ALLEGRO_KEY_DOWN))
+            ship->thrust_vertical(1);
+        if (al_key_down(&keys, ALLEGRO_KEY_RIGHT))
+            ship->thrust_horizontal(1);
+        if (al_key_down(&keys, ALLEGRO_KEY_LEFT))
+            ship->thrust_horizontal(-1);
             
-        switch(event.keyboard.keycode)
+        if (al_key_down(&keys, ALLEGRO_KEY_ESCAPE))
+            done = true;
+        
+        /*switch(event.keyboard.keycode)
         {
             case ALLEGRO_KEY_ESCAPE:
                 done = true;
@@ -170,7 +183,7 @@ void Game::loop(void)
                 break;
             case ALLEGRO_KEY_DELETE:
                 break;
-        }
+        }*/
     
         if (redraw && al_is_event_queue_empty(event_queue)) {
             redraw = false;
