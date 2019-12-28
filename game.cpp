@@ -108,12 +108,19 @@ void Game::collide_objects(void){
             Collision *prev = &(spaces[space_index].bodies[i]->prev_collision);
             prev->print();
             if (!prev->collides){
-                if (!prev->left || ! prev->right)
+                if (!prev->left || ! prev->right){
+                    if (prev->left) ship->pos.x += 1;
+                    if (prev->right) ship->pos.x -= 1;
                     ship->vel.x = 0;
-                if (!prev->top || ! prev->bottom)
+                }
+                if (!prev->top || ! prev->bottom){
+                    if (prev->top) ship->pos.y -= 1;
+                    if (prev->bottom) ship->pos.y += 1;
                     ship->vel.y = 0;
+                }
+                    
             }
-            //prev = &collision;
+            // prev = &collision;
             
         } else {
             spaces[space_index].bodies[i]->prev_collision = collision;
