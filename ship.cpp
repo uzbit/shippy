@@ -84,12 +84,12 @@ void Ship::draw_flames(void){
     if (thrust_dir != NONE){
         ALLEGRO_TRANSFORM transform;
         if (thrust_dir & LEFT){
-            al_build_transform(&transform, pos.x+width2+thick/2, pos.y, 1, 1, -3.14159);
+            al_build_transform(&transform, pos.x+width2+thick/2, pos.y, 0.75, 0.75, -3.14159);
             draw_flame(&transform); 
             flame_counter[0]++;
         }
         if (thrust_dir & RIGHT){
-            al_build_transform(&transform, pos.x-width2-thick/2, pos.y, 1, 1, 0);
+            al_build_transform(&transform, pos.x-width2-thick/2, pos.y, 0.75, 0.75, 0);
             draw_flame(&transform);
             flame_counter[1]++;    
         }               
