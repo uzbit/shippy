@@ -43,7 +43,7 @@ void Game::init_graphics(void)
 }
 
 void Game::init_game(void){
-    ship = new Ship(WINDOW_WIDTH/2, WINDOW_HEIGHT/2, 1000, 10000);
+    ship = new Ship(WINDOW_WIDTH/2, WINDOW_HEIGHT/2, 10000, 10000);
     add_space(0, 0);
 }
 
@@ -106,7 +106,6 @@ void Game::collide_objects(void){
         Collision collision = ship->collides(spaces[space_index].bodies[i]);
         if (collision.collides){
             Collision *prev = &(spaces[space_index].bodies[i]->prev_collision);
-            prev->print();
             if (!prev->collides){
                 if (!prev->left || ! prev->right){
                     if (prev->left) ship->pos.x += 1;
@@ -114,14 +113,12 @@ void Game::collide_objects(void){
                     ship->vel.x = 0;
                 }
                 if (!prev->top || ! prev->bottom){
-                    if (prev->top) ship->pos.y -= 1;
+                    if (prev->top) ship->pos.y -= 0.1;
                     if (prev->bottom) ship->pos.y += 1;
                     ship->vel.y = 0;
                 }
                     
             }
-            // prev = &collision;
-            
         } else {
             spaces[space_index].bodies[i]->prev_collision = collision;
         }

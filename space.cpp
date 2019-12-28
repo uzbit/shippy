@@ -29,11 +29,10 @@ void Space::init(void){
     }
 
     // make one body ground for lowest coordy
-    cout << coordy << endl;
     if (coordy == 0){
         bodies[0]->pos.x = WINDOW_WIDTH/2;
         bodies[0]->pos.y = WINDOW_HEIGHT - 25;
-        bodies[0]->width = WINDOW_WIDTH;
+        bodies[0]->width = WINDOW_WIDTH+50;
         bodies[0]->height = 50;
         bodies[0]->width2 = bodies[0]->width/2;
         bodies[0]->height2 = bodies[0]->height/2;

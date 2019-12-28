@@ -11,7 +11,6 @@ using namespace std;
 
 
 Ship::Ship(){
-    cout << "Here"<< endl;
 }
 Ship::~Ship(){cout << "end" << endl;}
 
