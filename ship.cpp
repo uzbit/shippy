@@ -27,16 +27,28 @@ void Ship::thrust_horizontal(float scale){
     if (fuel > 0){
         accel.x = scale*thrustx/(mass + fuel*FUEL_MASS);
         fuel -= HORIZONTAL_FUEL_CONSUMPTION;
+        if (scale < 0) thrust_dir = LEFT;
+        if (scale > 0) thrust_dir = RIGHT;
+        
     }
-    if (fuel < 0) fuel = 0;
+    if (fuel < 0){
+        fuel = 0;
+        thrust_dir = NONE;
+    }
     cout << "ACCELX " << accel.x << endl;
 }
 void Ship::thrust_vertical(float scale){
     if (fuel > 0){
         accel.y = scale*thrusty/(mass + fuel*FUEL_MASS);
         fuel -= VERTICAL_FUEL_CONSUMPTION;
+        if (scale < 0) thrust_dir = UP;
+        if (scale > 0) thrust_dir = DOWN;
     }
-    if (fuel < 0) fuel = 0;
+    if (fuel < 0){
+        fuel = 0;
+        thrust_dir = NONE;
+    } 
+    
     cout << "ACCELY " << accel.y << endl;
 }
 
@@ -51,11 +63,32 @@ void Ship::update(void){
 
 void Ship::draw(void){
 
-    //al_draw_line(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, , 10);
-    //cout << pos.x << " " << pos.y << endl;
+    float thick = 4;
+    
     computeRect();
     
-    float thick = 4;
+    ALLEGRO_TRANSFORM transform;
+    switch(thrust_dir){
+        case RIGHT:
+            al_build_transform(&transform, pos.x-width2-thick/2, pos.y, 1, 1, 0);
+            break;
+        case LEFT:
+            al_build_transform(&transform, pos.x+width2+thick/2, pos.y, 1, 1, -3.14159);
+            break;
+        case UP:
+            al_build_transform(&transform, pos.x, pos.y+height2+thick/2, 1, 1, -3.14159/2);
+            break;
+        case DOWN:
+            al_build_transform(&transform, pos.x, pos.y-height2-thick/2, 1, 1, 3.14159/2);
+            break;
+        default:
+            al_identity_transform(&transform);
+    }
+    al_use_transform(&transform);
+    al_draw_filled_triangle(-15, 0, 0, 10, 0, -10, al_map_rgb(25, 200, 2));
+    al_identity_transform(&transform);
+    al_use_transform(&transform);
+    
     al_draw_rounded_rectangle(
         rect.tl.x, rect.tl.y, rect.br.x, rect.br.y,
         1, 1, al_map_rgb(255, 255, 2), thick
@@ -69,5 +102,6 @@ void Ship::draw(void){
             al_map_rgb(255, 30, 2)
         );
     }
-
+    thrust_dir = NONE;
+    
 }

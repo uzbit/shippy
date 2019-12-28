@@ -148,33 +148,30 @@ void Game::loop(void)
             redraw = true;
             update_game();
         }
-        else if (event.type == ALLEGRO_EVENT_KEY_DOWN) {
             
-            switch(event.keyboard.keycode)
-            {
-                case ALLEGRO_KEY_ESCAPE:
-                    done = true;
-                    break;
-                case ALLEGRO_KEY_RIGHT:
-                    ship->thrust_horizontal(1);
-                    break;
-                case ALLEGRO_KEY_LEFT:
-                    ship->thrust_horizontal(-1);
-                    break;
-                case ALLEGRO_KEY_UP:
-                    ship->thrust_vertical(-1);
-                    break;
-                case ALLEGRO_KEY_DOWN:
-                    ship->thrust_vertical(1);
-                    break;
-                case ALLEGRO_KEY_SPACE:
-                    break;
-                case ALLEGRO_KEY_DELETE:
-                    break;
-            }
-            
+        switch(event.keyboard.keycode)
+        {
+            case ALLEGRO_KEY_ESCAPE:
+                done = true;
+                break;
+            case ALLEGRO_KEY_RIGHT:
+                ship->thrust_horizontal(1);
+                break;
+            case ALLEGRO_KEY_LEFT:
+                ship->thrust_horizontal(-1);
+                break;
+            case ALLEGRO_KEY_UP:
+                ship->thrust_vertical(-1);
+                break;
+            case ALLEGRO_KEY_DOWN:
+                ship->thrust_vertical(1);
+                break;
+            case ALLEGRO_KEY_SPACE:
+                break;
+            case ALLEGRO_KEY_DELETE:
+                break;
         }
- 
+    
         if (redraw && al_is_event_queue_empty(event_queue)) {
             redraw = false;
             al_clear_to_color(al_map_rgb(0, 0, 0));

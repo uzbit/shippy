@@ -5,6 +5,15 @@
 #include "geom.h"
 #include "object.h"
 
+
+enum ThrustDirection{
+    LEFT, 
+    RIGHT, 
+    UP, 
+    DOWN,
+    NONE
+};
+
 class Ship : public Object{
 
     public:
@@ -23,6 +32,7 @@ class Ship : public Object{
     float mass;
     float fuel, fuel_start;
     float thrustx, thrusty;
+    ThrustDirection thrust_dir;
 };
 
 

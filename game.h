@@ -8,6 +8,7 @@
 
 using namespace std;
 
+
 class Game{
 
     public:
@@ -36,7 +37,6 @@ class Game{
     vector<Space> spaces;
     int coordx, coordy;
     int space_index;
-    
 };
 
 
