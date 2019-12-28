@@ -17,11 +17,12 @@ void Space::init(void){
     //Body(float x, float y, float width, float height, ALLEGRO_COLOR color, bool filled);
     int max_size = 400;
     int min_size = 50;
+    float width, height, posx, posy;
     for (int i=0; i < body_count; i++){
-        float width = min_size + rand()%max_size;
-        float height = min_size + rand()%max_size;
-        float posx = rand() % (int)(WINDOW_WIDTH - width/2);
-        float posy = rand() % (int)(WINDOW_HEIGHT - height/2);
+        width = min_size + rand()%max_size;
+        height = min_size + rand()%max_size;
+        posx = rand() % (int)(WINDOW_WIDTH - width/2);
+        posy = rand() % (int)(WINDOW_HEIGHT - height/2);
         if (posx - width/2 < 0) posx += width/2;
         if (posy - height/2 < 0) posy += height/2;
          
@@ -47,6 +48,24 @@ void Space::init(void){
         bodies[0]->computeRect();
     }
     
+
+    int loot_count = rand() % 3;
+    for (int i=0; i < loot_count; i++){
+        int type = rand() % NUM_LOOT;
+        if (type == FUEL){
+            width = 20;
+            height = 30;
+            posx = rand() % (int)(WINDOW_WIDTH - width/2);
+            posy = rand() % (int)(WINDOW_HEIGHT - height/2);
+            if (posx - width/2 < 0) posx += width/2;
+            if (posy - height/2 < 0) posy += height/2;
+            
+            Loot loot = Loot(posx, posy, width, height, al_map_rgb(255, 20, 20), (LootType)type);
+            loot.value = rand() % 1000;
+            loots.push_back(loot);
+        }
+    }
+
     // for (int i=0; i < body_count; i++)
     //     printf("%f, %f, %f, %f\n", 
     //         bodies[i]->rect.tl.x, bodies[i]->rect.tl.y, bodies[i]->rect.br.x, bodies[i]->rect.br.y);
@@ -56,4 +75,7 @@ void Space::init(void){
 void Space::draw(void){
     for (int i=body_count-1; i >=0 ; i--)
         bodies[i]->draw();
+    
+    for (int i=0; i < loots.size() ; i++)
+        loots[i].draw();
 }

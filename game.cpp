@@ -11,6 +11,7 @@
 #include "game.h"
 #include "space.h"
 #include "ship.h"
+#include "loot.h"
 
 using namespace std;
 
@@ -96,6 +97,7 @@ void Game::update_game(void){
     ship->update();
     update_space();
     collide_ship_bodies();
+    collide_ship_loot();
 }
 
 void Game::update_space(void){
@@ -132,8 +134,8 @@ void Game::draw_info(void){
     ALLEGRO_COLOR color = al_map_rgb(255, 255, 255);
     float speed = sqrt(ship->vel.x*ship->vel.x + ship->vel.y*ship->vel.y);
     al_draw_textf(font, color, 10, 10, 0,
-        "Space Coordinate: (%d, %d) | Spaces Discovered: %ld | Speed: %2.1f", 
-        coordx, coordy, spaces.size(), speed
+        "Space Coordinate: (%d, %d) | Spaces Discovered: %ld | Speed: %.1f | Fuel: %.1f", 
+        coordx, coordy, spaces.size(), speed, ship->fuel
     );
 }
 
@@ -158,6 +160,29 @@ void Game::collide_ship_bodies(void){
         } else {
             spaces[space_index].bodies[i]->prev_collision = collision;
         }
+    }
+}
+
+void Game::collide_ship_loot(void){
+    Space *curr_space = &spaces[space_index];
+
+    for (int i=0; i < curr_space->loots.size(); i++){
+        Collision collision = ship->collides(&curr_space->loots[i]);
+        if (collision.collides){
+            apply_loot(&curr_space->loots[i]);
+            curr_space->loots.erase(curr_space->loots.begin()+i);
+        }else {
+            curr_space->loots[i].prev_collision = collision;
+        }
+    }
+}
+
+void Game::apply_loot(Loot *loot){
+    switch(loot->type){
+        case FUEL:
+            ship->fuel += loot->value;
+            ship->fuel = min(ship->fuel_start, ship->fuel);
+            break;
     }
 }
 

@@ -5,6 +5,7 @@
 #include <allegro5/allegro_font.h>
 #include <vector>
 #include "ship.h"
+#include "loot.h"
 #include "space.h"
 
 using namespace std;
@@ -26,6 +27,8 @@ class Game{
     int get_space_index(void);
     void draw_info(void);
     void collide_ship_bodies(void);
+    void collide_ship_loot(void);
+    void apply_loot(Loot *loot);
 
     void loop(void);
     void abort(const char* message);

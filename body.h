@@ -2,8 +2,6 @@
 #define _BODY_H_
 
 #include <allegro5/allegro5.h>
-#include "geom.h"
-#include "defines.h"
 #include "object.h"
 #include "collision.h"
 
