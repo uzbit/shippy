@@ -1,5 +1,6 @@
 #include <allegro5/allegro5.h>
 #include <allegro5/allegro_primitives.h>
+#include <iostream>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -7,11 +8,21 @@
 #include "game.h"
 #include "space.h"
 
+using namespace std;
+
 Game::Game()
 :coordx(0), coordy(0), space_index(-1){
 }
 
 Game::~Game(){
+    delete ship;
+    for (int i = 0; i < spaces.size(); i++){
+        for (int j=0; j < spaces[i].body_count; j++){
+            delete spaces[i].bodies[j];
+        }
+        delete spaces[i].bodies;
+    }
+    cout << "end" << endl;
 }
 
 void Game::init_graphics(void)
@@ -108,16 +119,15 @@ void Game::collide_objects(void){
             Collision *prev = &(spaces[space_index].bodies[i]->prev_collision);
             if (!prev->collides){
                 if (!prev->left || ! prev->right){
-                    if (prev->left) ship->pos.x += 1;
-                    if (prev->right) ship->pos.x -= 1;
+                    if (!prev->left) ship->pos.x -= 1;
+                    if (!prev->right) ship->pos.x += 1;
                     ship->vel.x = 0;
                 }
                 if (!prev->top || ! prev->bottom){
-                    if (prev->top) ship->pos.y -= 0.1;
-                    if (prev->bottom) ship->pos.y += 1;
+                    if (!prev->top) ship->pos.y += 1;
+                    if (!prev->bottom) ship->pos.y -= 0.1;
                     ship->vel.y = 0;
-                }
-                    
+                }       
             }
         } else {
             spaces[space_index].bodies[i]->prev_collision = collision;

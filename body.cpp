@@ -8,7 +8,7 @@
 
 Body::Body(float x, float y, float width, float height, ALLEGRO_COLOR color, bool filled)
 :Object(x, y, width, height), color(color), filled(filled){
-    round = rand() % 6 + 1; 
+    round = rand() % 20 + 1; 
 }
 
 void Body::draw(void){

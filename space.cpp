@@ -16,16 +16,23 @@ void Space::init(void){
     bodies = new Body* [body_count];
     //Body(float x, float y, float width, float height, ALLEGRO_COLOR color, bool filled);
     int max_size = 400;
-    int min_size = 20;
+    int min_size = 50;
     for (int i=0; i < body_count; i++){
         float width = min_size + rand()%max_size;
         float height = min_size + rand()%max_size;
+        float posx = rand() % (int)(WINDOW_WIDTH - width/2);
+        float posy = rand() % (int)(WINDOW_HEIGHT - height/2);
+        if (posx - width/2 < 0) posx += width/2;
+        if (posy - height/2 < 0) posy += height/2;
+         
         bodies[i] = new Body(
-            rand() % WINDOW_WIDTH, rand() % WINDOW_HEIGHT,
+            posx, posy,
             width, height, 
             al_map_rgb(rand()%255, rand()%255, rand()%255), 
             rand()%2 > 0 ? true : false
         );
+        bodies[i]->computeRect();
+
     }
 
     // make one body ground for lowest coordy
@@ -39,6 +46,7 @@ void Space::init(void){
         bodies[0]->filled = true;
         bodies[0]->computeRect();
     }
+    
     // for (int i=0; i < body_count; i++)
     //     printf("%f, %f, %f, %f\n", 
     //         bodies[i]->rect.tl.x, bodies[i]->rect.tl.y, bodies[i]->rect.br.x, bodies[i]->rect.br.y);

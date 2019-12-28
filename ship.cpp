@@ -12,19 +12,15 @@ using namespace std;
 
 Ship::Ship(){
 }
-Ship::~Ship(){cout << "end" << endl;}
+Ship::~Ship(){}
 
 Ship::Ship(float x, float y, float fuel, float mass)
 :Object(x, y, 10, 40), fuel(fuel), mass(mass){
     pos.x=x;
     pos.y=y;
-    // width = 10;
-    // height = 40;
     thrustx = 2500.0;
     thrusty = 10000.0;
     fuel_start = fuel;
-    // width2 = width/2;
-    // height2 = height/2;
 }
 
 void Ship::thrust_horizontal(float scale){
@@ -51,7 +47,6 @@ void Ship::update(void){
     vel.y += GRAVITY + accel.y;
     accel.x = 0;
     accel.y = 0;
-    
 }
 
 void Ship::draw(void){
