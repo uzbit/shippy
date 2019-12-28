@@ -11,7 +11,7 @@ using namespace std;
 class Game{
 
     public:
-    Game(){};
+    Game();
     ~Game();
 
     void init_graphics(void);
@@ -19,6 +19,9 @@ class Game{
     void add_space(int coordx, int coordy);
     void update_graphics(void);
     void update_game(void);
+    void update_space(void);
+    int get_space_index(void);
+    void collide_objects(void);
     void loop(void);
     void abort(const char* message);
     void shutdown(void);
@@ -31,6 +34,8 @@ class Game{
 
     Ship *ship;
     vector<Space> spaces;
+    int coordx, coordy;
+    int space_index;
     
 };
 

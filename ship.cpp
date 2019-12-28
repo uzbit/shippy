@@ -52,13 +52,15 @@ void Ship::update(void){
     vel.y += GRAVITY + accel.y;
     accel.x = 0;
     accel.y = 0;
+    
 }
 
 void Ship::draw(void){
 
     //al_draw_line(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, , 10);
     //cout << pos.x << " " << pos.y << endl;
-    Rect rect = computeRect();
+    computeRect();
+    
     float thick = 4;
     al_draw_rounded_rectangle(
         rect.tl.x, rect.tl.y, rect.br.x, rect.br.y,

@@ -32,15 +32,21 @@ void Space::init(void){
     cout << coordy << endl;
     if (coordy == 0){
         bodies[0]->pos.x = WINDOW_WIDTH/2;
-        bodies[0]->pos.y = WINDOW_HEIGHT - 30;
+        bodies[0]->pos.y = WINDOW_HEIGHT - 25;
         bodies[0]->width = WINDOW_WIDTH;
-        bodies[0]->height = 30;
+        bodies[0]->height = 50;
+        bodies[0]->width2 = bodies[0]->width/2;
+        bodies[0]->height2 = bodies[0]->height/2;
         bodies[0]->filled = true;
-        bodies[0]->rect = bodies[0]->computeRect();
+        bodies[0]->computeRect();
     }
+    // for (int i=0; i < body_count; i++)
+    //     printf("%f, %f, %f, %f\n", 
+    //         bodies[i]->rect.tl.x, bodies[i]->rect.tl.y, bodies[i]->rect.br.x, bodies[i]->rect.br.y);
+    
 }
 
 void Space::draw(void){
-    for (int i=0; i < body_count; i++)
+    for (int i=body_count-1; i >=0 ; i--)
         bodies[i]->draw();
 }

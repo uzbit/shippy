@@ -5,6 +5,7 @@
 #include "geom.h"
 #include "defines.h"
 #include "object.h"
+#include "collision.h"
 
 class Body : public Object{
 
@@ -16,8 +17,9 @@ class Body : public Object{
     void draw(void);
 
     bool filled;
-    Rect rect;
+    int round;
     ALLEGRO_COLOR color;
+    Collision prev_collision;
 };
     
 

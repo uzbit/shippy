@@ -11,8 +11,7 @@ class Space {
 
     void init(void);
     void draw(void);
-
-    private:
+    
     Body **bodies;
     int body_count;
     int coordx, coordy;

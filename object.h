@@ -2,6 +2,7 @@
 #define _OBJECT_H_
 
 #include "geom.h"
+#include "collision.h"
 
 class Object{
     public:
@@ -9,23 +10,21 @@ class Object{
     Object(float x, float y, float width, float height);
     ~Object(){}
 
-    bool collides(Object *obj){
-        Rect objRect = obj->computeRect();
-        Rect thisRect = this->computeRect();
-        return false;
-    }
+    Collision collides(Object *obj);
+
     Rect computeRect(void){
-        return Rect(
+        rect = Rect(
             pos.x-width2, pos.y-height2, 
             pos.x+width2, pos.y+height2
         );
+        return rect;
     }
 
 
     Point pos;
+    Rect rect;
     float width, height;
     float width2, height2;
-
 };
 
 

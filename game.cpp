@@ -7,6 +7,10 @@
 #include "game.h"
 #include "space.h"
 
+Game::Game()
+:coordx(0), coordy(0), space_index(-1){
+}
+
 Game::~Game(){
 }
 
@@ -39,7 +43,7 @@ void Game::init_graphics(void)
 }
 
 void Game::init_game(void){
-    ship = new Ship(WINDOW_WIDTH/2, WINDOW_HEIGHT/2, 200, 10000);
+    ship = new Ship(WINDOW_WIDTH/2, WINDOW_HEIGHT/2, 1000, 10000);
     add_space(0, 0);
 }
 
@@ -51,14 +55,70 @@ void Game::add_space(int coordx, int coordy){
 
 void Game::update_graphics(void)
 {
+    spaces[space_index].draw();
     ship->draw();
-    for (int i = 0; i < spaces.size(); i++)
-        spaces[i].draw();
-
 }
 
 void Game::update_game(void){
+    get_space_index();
+    if (space_index < 0){
+        add_space(coordx, coordy);
+        space_index = spaces.size() - 1;
+    }
     ship->update();
+    update_space();
+    collide_objects();
+}
+
+void Game::update_space(void){
+    if (ship->pos.x > WINDOW_WIDTH){
+        ship->pos.x = 0;
+        coordx += 1;
+    }
+    if (ship->pos.x < 0){
+        ship->pos.x = WINDOW_WIDTH;
+        coordx -= 1;
+    }
+    if (ship->pos.y < 0){
+        ship->pos.y = WINDOW_HEIGHT;
+        coordy += 1;
+    }
+    if (ship->pos.y > WINDOW_HEIGHT){
+        ship->pos.y = 0;
+        coordy -= 1;
+    }
+}
+
+int Game::get_space_index(void){
+    space_index = -1;
+    for (int i = 0; i < spaces.size(); i++){
+        if (spaces[i].coordx == coordx && spaces[i].coordy == coordy){
+            space_index = i;
+            break;
+        }
+    }
+    return space_index;
+}
+
+
+void Game::collide_objects(void){
+    for (int i=0; i < spaces[space_index].body_count; i++){
+        Collision collision = ship->collides(spaces[space_index].bodies[i]);
+        if (collision.collides){
+            Collision *prev = &(spaces[space_index].bodies[i]->prev_collision);
+            prev->print();
+            if (!prev->collides){
+                if (!prev->left || ! prev->right)
+                    ship->vel.x = 0;
+                if (!prev->top || ! prev->bottom)
+                    ship->vel.y = 0;
+            }
+            //prev = &collision;
+            
+        } else {
+            spaces[space_index].bodies[i]->prev_collision = collision;
+        }
+    }
 }
 
 void Game::loop(void)
