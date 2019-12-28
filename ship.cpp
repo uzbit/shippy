@@ -9,14 +9,10 @@
 
 using namespace std;
 
-Ship::Ship(){
-}
-Ship::~Ship(){}
-
 Ship::Ship(float x, float y, float fuel, float mass)
 :Object(x, y, 10, 40), fuel(fuel), mass(mass), thick(4){
-    pos.x=x;
-    pos.y=y;
+    pos.x = x;
+    pos.y = y;
     thrustx = 250.0;
     thrusty = 1000.0;
     fuel_start = fuel;
@@ -26,7 +22,7 @@ Ship::Ship(float x, float y, float fuel, float mass)
 
 void Ship::thrust_horizontal(float scale){
     if (fuel > 0){
-        accel.x = scale*thrustx/(mass + fuel*FUEL_MASS);
+        accel.x += scale*thrustx/(mass + fuel*FUEL_MASS);
         fuel -= HORIZONTAL_FUEL_CONSUMPTION;
         if (scale < 0){
             thrust_dir |= LEFT;
@@ -43,9 +39,10 @@ void Ship::thrust_horizontal(float scale){
     }
     cout << "ACCELX " << accel.x << endl;
 }
+
 void Ship::thrust_vertical(float scale){
     if (fuel > 0){
-        accel.y = scale*thrusty/(mass + fuel*FUEL_MASS);
+        accel.y += scale*thrusty/(mass + fuel*FUEL_MASS);
         fuel -= VERTICAL_FUEL_CONSUMPTION;
         if (scale < 0){
             thrust_dir |= UP;
@@ -80,7 +77,6 @@ void Ship::draw_flame(ALLEGRO_TRANSFORM *transform){
 }
 
 void Ship::draw_flames(void){
-    
     if (thrust_dir != NONE){
         ALLEGRO_TRANSFORM transform;
         if (thrust_dir & LEFT){
@@ -103,13 +99,10 @@ void Ship::draw_flames(void){
             draw_flame(&transform);
             flame_counter[3]++; 
         }
-        
     }
 }
 
 void Ship::draw(void){
-
-    
     computeRect();
     
     draw_flames();

@@ -1,8 +1,11 @@
 #include <allegro5/allegro5.h>
+#include <allegro5/allegro_font.h>
+#include <allegro5/allegro_ttf.h>
 #include <allegro5/allegro_primitives.h>
 #include <iostream>
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 
 #include "defines.h"
 #include "game.h"
@@ -12,7 +15,7 @@
 using namespace std;
 
 Game::Game()
-:coordx(0), coordy(0), space_index(-1){
+:coordx(0), coordy(0), space_index(-1), done(false){
 }
 
 Game::~Game(){
@@ -23,7 +26,7 @@ Game::~Game(){
         }
         delete spaces[i].bodies;
     }
-    cout << "end" << endl;
+    cout << "cleaned up" << endl;
 }
 
 void Game::init_graphics(void)
@@ -33,11 +36,15 @@ void Game::init_graphics(void)
  
     if (!al_install_keyboard())
         abort("Failed to install keyboard");
- 
+    
     timer = al_create_timer(1.0 / 60);
     if (!timer)
         abort("Failed to create timer");
- 
+
+    al_init_primitives_addon();
+    al_init_font_addon();
+    al_init_ttf_addon();
+
     al_set_new_display_flags(ALLEGRO_WINDOWED);
     display = al_create_display(WINDOW_WIDTH, WINDOW_HEIGHT);
     if (!display)
@@ -50,7 +57,15 @@ void Game::init_graphics(void)
     al_register_event_source(event_queue, al_get_keyboard_event_source());
     al_register_event_source(event_queue, al_get_timer_event_source(timer));
     al_register_event_source(event_queue, al_get_display_event_source(display));
-    al_init_primitives_addon();
+    
+    // ALLEGRO_PATH *path = al_get_standard_path(ALLEGRO_RESOURCES_PATH);
+    // cout << al_path_cstr(path, '\n')  << endl;
+    // al_get_standard_path(ALLEGRO_EXENAME_PATH);
+    font = al_load_ttf_font("data/DejaVuSans.ttf", 16, 0);
+    //font = al_load_ttf_font("LibreCaslonText-Bold.ttf", 72, 0);
+    if (!font)
+        abort("Failed to load font!");
+
     done = false;
 }
 
@@ -69,6 +84,7 @@ void Game::update_graphics(void)
 {
     spaces[space_index].draw();
     ship->draw();
+    draw_info();
 }
 
 void Game::update_game(void){
@@ -79,7 +95,7 @@ void Game::update_game(void){
     }
     ship->update();
     update_space();
-    collide_objects();
+    collide_ship_bodies();
 }
 
 void Game::update_space(void){
@@ -112,8 +128,17 @@ int Game::get_space_index(void){
     return space_index;
 }
 
+void Game::draw_info(void){
+    ALLEGRO_COLOR color = al_map_rgb(255, 255, 255);
+    float speed = sqrt(ship->vel.x*ship->vel.x + ship->vel.y*ship->vel.y);
+    al_draw_textf(font, color, 10, 10, 0,
+        "Space Coordinate: (%d, %d) | Spaces Discovered: %ld | Speed: %2.1f", 
+        coordx, coordy, spaces.size(), speed
+    );
+}
 
-void Game::collide_objects(void){
+
+void Game::collide_ship_bodies(void){
     for (int i=0; i < spaces[space_index].body_count; i++){
         Collision collision = ship->collides(spaces[space_index].bodies[i]);
         if (collision.collides){
@@ -150,41 +175,22 @@ void Game::loop(void)
             redraw = true;
             update_game();
         }
+
         if (al_key_down(&keys, ALLEGRO_KEY_UP))
             ship->thrust_vertical(-1);
+
         if (al_key_down(&keys, ALLEGRO_KEY_DOWN))
             ship->thrust_vertical(1);
+
         if (al_key_down(&keys, ALLEGRO_KEY_RIGHT))
             ship->thrust_horizontal(1);
+
         if (al_key_down(&keys, ALLEGRO_KEY_LEFT))
             ship->thrust_horizontal(-1);
-            
+
         if (al_key_down(&keys, ALLEGRO_KEY_ESCAPE))
             done = true;
         
-        /*switch(event.keyboard.keycode)
-        {
-            case ALLEGRO_KEY_ESCAPE:
-                done = true;
-                break;
-            case ALLEGRO_KEY_RIGHT:
-                ship->thrust_horizontal(1);
-                break;
-            case ALLEGRO_KEY_LEFT:
-                ship->thrust_horizontal(-1);
-                break;
-            case ALLEGRO_KEY_UP:
-                ship->thrust_vertical(-1);
-                break;
-            case ALLEGRO_KEY_DOWN:
-                ship->thrust_vertical(1);
-                break;
-            case ALLEGRO_KEY_SPACE:
-                break;
-            case ALLEGRO_KEY_DELETE:
-                break;
-        }*/
-    
         if (redraw && al_is_event_queue_empty(event_queue)) {
             redraw = false;
             al_clear_to_color(al_map_rgb(0, 0, 0));

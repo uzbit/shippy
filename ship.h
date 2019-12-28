@@ -18,9 +18,9 @@ enum ThrustDirection{
 class Ship : public Object{
 
     public:
-    Ship();
+    Ship(){};
     Ship(float x, float y, float fuel, float mass);
-    ~Ship();
+    ~Ship(){};
 
     void update(void);
     void thrust_vertical(float scale);

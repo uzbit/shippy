@@ -2,6 +2,7 @@
 #define _GAME_H_
 
 #include <allegro5/allegro5.h>
+#include <allegro5/allegro_font.h>
 #include <vector>
 #include "ship.h"
 #include "space.h"
@@ -17,12 +18,15 @@ class Game{
 
     void init_graphics(void);
     void init_game(void);
+    
     void add_space(int coordx, int coordy);
     void update_graphics(void);
     void update_game(void);
     void update_space(void);
     int get_space_index(void);
-    void collide_objects(void);
+    void draw_info(void);
+    void collide_ship_bodies(void);
+
     void loop(void);
     void abort(const char* message);
     void shutdown(void);
@@ -32,6 +36,7 @@ class Game{
     ALLEGRO_EVENT_QUEUE* event_queue;
     ALLEGRO_TIMER* timer;
     ALLEGRO_DISPLAY* display;
+    ALLEGRO_FONT *font;
 
     Ship *ship;
     vector<Space> spaces;
