@@ -13,8 +13,8 @@ Ship::Ship(float x, float y, float fuel, float mass)
 :Object(x, y, 10, 40), fuel(fuel), mass(mass), thick(4){
     pos.x = x;
     pos.y = y;
-    thrustx = 250.0;
-    thrusty = 1000.0;
+    thrustx = THRUST_X;
+    thrusty = THRUST_Y;
     fuel_start = fuel;
     thrust_dir = NONE;
     memset(flame_counter, 0, sizeof(flame_counter));

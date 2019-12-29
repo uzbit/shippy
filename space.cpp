@@ -50,19 +50,30 @@ void Space::init(void){
     
 
     int loot_count = rand() % 3;
+    Loot loot;
     for (int i=0; i < loot_count; i++){
         int type = rand() % NUM_LOOT;
-        if (type == FUEL){
-            width = 20;
-            height = 30;
-            posx = rand() % (int)(WINDOW_WIDTH - width/2);
-            posy = rand() % (int)(WINDOW_HEIGHT - height/2);
-            if (posx - width/2 < 0) posx += width/2;
-            if (posy - height/2 < 0) posy += height/2;
+        posx = rand() % (int)(WINDOW_WIDTH - width/2);
+        posy = rand() % (int)(WINDOW_HEIGHT - height/2);
+        if (posx - width/2 < 0) posx += width/2;
+        if (posy - height/2 < 0) posy += height/2;
+                
+        switch(type){
+            case FUEL:
+                width = 20;
+                height = 30;
+                loot = Loot(posx, posy, width, height, al_map_rgb(255, 20, 20), (LootType)type);
+                loot.value = 100 + rand() % (int)FUEL_START/2;
+                loots.push_back(loot);
+                break;
+            case BOOST:
+                width = 40;
+                height = 40;
+                loot = Loot(posx, posy, width, height, al_map_rgb(255, 200, 20), (LootType)type);
+                loot.value = rand() % 5 + 2;
+                loots.push_back(loot);
+                break;
             
-            Loot loot = Loot(posx, posy, width, height, al_map_rgb(255, 20, 20), (LootType)type);
-            loot.value = rand() % 1000;
-            loots.push_back(loot);
         }
     }
 

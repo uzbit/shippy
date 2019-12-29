@@ -71,7 +71,7 @@ void Game::init_graphics(void)
 }
 
 void Game::init_game(void){
-    ship = new Ship(WINDOW_WIDTH/2, WINDOW_HEIGHT/2, 10000, 10000);
+    ship = new Ship(WINDOW_WIDTH/2, WINDOW_HEIGHT/2, FUEL_START, SHIP_MASS);
     add_space(0, 0);
 }
 
@@ -182,6 +182,10 @@ void Game::apply_loot(Loot *loot){
         case FUEL:
             ship->fuel += loot->value;
             ship->fuel = min(ship->fuel_start, ship->fuel);
+            break;
+        case BOOST:
+            ship->vel.x *= loot->value;
+            ship->vel.y *= loot->value;
             break;
     }
 }
