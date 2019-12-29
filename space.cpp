@@ -40,11 +40,12 @@ void Space::init(void){
     if (coordy == 0){
         bodies[0]->pos.x = WINDOW_WIDTH/2;
         bodies[0]->pos.y = WINDOW_HEIGHT - 25;
-        bodies[0]->width = WINDOW_WIDTH+50;
+        bodies[0]->width = WINDOW_WIDTH + 100;
         bodies[0]->height = 50;
         bodies[0]->width2 = bodies[0]->width/2;
         bodies[0]->height2 = bodies[0]->height/2;
         bodies[0]->filled = true;
+        bodies[0]->round = 1;
         bodies[0]->computeRect();
     }
     

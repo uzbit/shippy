@@ -4,7 +4,7 @@
 #define GRAVITY 0.01
 #define FUEL_MASS 2.0
 #define FUEL_START 10000
-#define SHIP_MASS 10000
+#define SHIP_MASS 5000
 #define THRUST_X 250
 #define THRUST_Y 1000
 #define HORIZONTAL_FUEL_CONSUMPTION 2.0

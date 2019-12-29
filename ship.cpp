@@ -37,7 +37,7 @@ void Ship::thrust_horizontal(float scale){
         fuel = 0;
         thrust_dir = NONE;
     }
-    cout << "ACCELX " << accel.x << endl;
+    //cout << "ACCELX " << accel.x << endl;
 }
 
 void Ship::thrust_vertical(float scale){
@@ -57,7 +57,7 @@ void Ship::thrust_vertical(float scale){
         fuel = 0;
         thrust_dir = NONE;
     } 
-    cout << "ACCELY " << accel.y << endl;
+    //cout << "ACCELY " << accel.y << endl;
 }
 
 void Ship::update(void){

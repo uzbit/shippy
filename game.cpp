@@ -30,8 +30,7 @@ Game::~Game(){
     cout << "cleaned up" << endl;
 }
 
-void Game::init_graphics(void)
-{
+void Game::init_graphics(void){
     if (!al_init())
         abort("Failed to initialize allegro");
  
@@ -73,16 +72,37 @@ void Game::init_graphics(void)
 void Game::init_game(void){
     ship = new Ship(WINDOW_WIDTH/2, WINDOW_HEIGHT/2, FUEL_START, SHIP_MASS);
     add_space(0, 0);
+    adjust_ship_position();
+}
+
+void Game::adjust_ship_position(void){
+    Collision collision;
+    float posx, posy;
+    do {
+        for (int i=0; i < spaces[space_index].body_count; i++){
+            collision = ship->collides(spaces[space_index].bodies[i]);
+            if (collision.collides){
+                posx = rand() % (int)(WINDOW_WIDTH - ship->width);
+                posy = rand() % (int)(WINDOW_HEIGHT - ship->height);
+                if (posx - ship->width < 0) posx += ship->width;
+                if (posy - ship->height < 0) posy += ship->height;
+                ship->pos.x = posx;
+                ship->pos.y = posy;
+                ship->computeRect();
+                break;
+            }
+        }
+    } while(collision.collides);    
 }
 
 void Game::add_space(int coordx, int coordy){
     Space space = Space(rand()%10 + 1, coordx, coordy);
     space.init();
     spaces.push_back(space); 
+    space_index = spaces.size() - 1;
 }  
 
-void Game::update_graphics(void)
-{
+void Game::update_graphics(void){
     spaces[space_index].draw();
     ship->draw();
     draw_info();
@@ -90,10 +110,10 @@ void Game::update_graphics(void)
 
 void Game::update_game(void){
     get_space_index();
-    if (space_index < 0){
+    
+    if (space_index < 0)
         add_space(coordx, coordy);
-        space_index = spaces.size() - 1;
-    }
+    
     ship->update();
     update_space();
     collide_ship_bodies();
@@ -102,19 +122,19 @@ void Game::update_game(void){
 
 void Game::update_space(void){
     if (ship->pos.x > WINDOW_WIDTH){
-        ship->pos.x = 0;
+        ship->pos.x = ship->width2;
         coordx += 1;
     }
     if (ship->pos.x < 0){
-        ship->pos.x = WINDOW_WIDTH;
+        ship->pos.x = WINDOW_WIDTH - ship->width2;
         coordx -= 1;
     }
     if (ship->pos.y < 0){
-        ship->pos.y = WINDOW_HEIGHT;
+        ship->pos.y = WINDOW_HEIGHT - ship->height2;
         coordy += 1;
     }
     if (ship->pos.y > WINDOW_HEIGHT){
-        ship->pos.y = 0;
+        ship->pos.y = ship->height2;
         coordy -= 1;
     }
 }
@@ -139,21 +159,20 @@ void Game::draw_info(void){
     );
 }
 
-
 void Game::collide_ship_bodies(void){
     for (int i=0; i < spaces[space_index].body_count; i++){
         Collision collision = ship->collides(spaces[space_index].bodies[i]);
         if (collision.collides){
             Collision *prev = &(spaces[space_index].bodies[i]->prev_collision);
             if (!prev->collides){
-                if (!prev->left || ! prev->right){
+                if (!prev->left || !prev->right){
                     if (!prev->left) ship->pos.x -= 1;
                     if (!prev->right) ship->pos.x += 1;
                     ship->vel.x = 0;
                 }
-                if (!prev->top || ! prev->bottom){
+                if (!prev->top || !prev->bottom){
                     if (!prev->top) ship->pos.y += 1;
-                    if (!prev->bottom) ship->pos.y -= 0.1;
+                    if (!prev->bottom) {ship->pos.y -= 0.1;}
                     ship->vel.y = 0;
                 }       
             }
@@ -190,8 +209,7 @@ void Game::apply_loot(Loot *loot){
     }
 }
 
-void Game::loop(void)
-{
+void Game::loop(void){
     bool redraw = true;
     al_start_timer(timer);
     ALLEGRO_KEYBOARD_STATE keys;
@@ -229,15 +247,13 @@ void Game::loop(void)
     }
 }
 
-void Game::abort(const char* message)
-{
+void Game::abort(const char* message){
     printf("%s \n", message);
     shutdown();
     exit(1);
 }
 
-void Game::shutdown(void)
-{
+void Game::shutdown(void){
     if (timer)
         al_destroy_timer(timer);
  

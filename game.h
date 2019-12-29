@@ -21,6 +21,7 @@ class Game{
     void init_game(void);
     
     void add_space(int coordx, int coordy);
+    void adjust_ship_position(void);
     void update_graphics(void);
     void update_game(void);
     void update_space(void);
