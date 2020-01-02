@@ -58,11 +58,7 @@ void Game::init_graphics(void){
     al_register_event_source(event_queue, al_get_timer_event_source(timer));
     al_register_event_source(event_queue, al_get_display_event_source(display));
     
-    // ALLEGRO_PATH *path = al_get_standard_path(ALLEGRO_RESOURCES_PATH);
-    // cout << al_path_cstr(path, '\n')  << endl;
-    // al_get_standard_path(ALLEGRO_EXENAME_PATH);
     font = al_load_ttf_font("data/DejaVuSans.ttf", 16, 0);
-    //font = al_load_ttf_font("LibreCaslonText-Bold.ttf", 72, 0);
     if (!font)
         abort("Failed to load font!");
 
@@ -113,7 +109,7 @@ void Game::update_game(void){
     
     if (space_index < 0)
         add_space(coordx, coordy);
-    
+
     ship->update();
     update_space();
     collide_ship_bodies();
@@ -165,16 +161,22 @@ void Game::collide_ship_bodies(void){
         if (collision.collides){
             Collision *prev = &(spaces[space_index].bodies[i]->prev_collision);
             if (!prev->collides){
-                if (!prev->left || !prev->right){
-                    if (!prev->left) ship->pos.x -= 1;
-                    if (!prev->right) ship->pos.x += 1;
-                    ship->vel.x = 0;
-                }
                 if (!prev->top || !prev->bottom){
-                    if (!prev->top) ship->pos.y += 1;
-                    if (!prev->bottom) {ship->pos.y -= 0.1;}
+                    if (!prev->bottom && collision.bottom) 
+                        ship->pos.y = spaces[space_index].bodies[i]->rect.tl.y - ship->height2 - 0.1;
+                    if (!prev->top && collision.top) 
+                        ship->pos.y = spaces[space_index].bodies[i]->rect.br.y + ship->height2 + 0.1;
                     ship->vel.y = 0;
-                }       
+                    ship->accel.y = 0;
+                }
+                if (!prev->left || !prev->right){
+                    if (!prev->left  && collision.left) 
+                        ship->pos.x = spaces[space_index].bodies[i]->rect.tl.x - ship->width2 - 0.1;
+                    if (!prev->right && collision.right) 
+                        ship->pos.x = spaces[space_index].bodies[i]->rect.br.x + ship->width2 + 0.1;
+                    ship->vel.x = 0;
+                    ship->accel.x = 0;
+                }      
             }
         } else {
             spaces[space_index].bodies[i]->prev_collision = collision;
@@ -190,7 +192,7 @@ void Game::collide_ship_loot(void){
         if (collision.collides){
             apply_loot(&curr_space->loots[i]);
             curr_space->loots.erase(curr_space->loots.begin()+i);
-        }else {
+        } else {
             curr_space->loots[i].prev_collision = collision;
         }
     }

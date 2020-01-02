@@ -37,22 +37,20 @@ void Loot::draw(void){
             float deg2rad = M_PI/180;
             float a = d*cos(54*deg2rad);
             float b = d*sin(54*deg2rad);
+            float c, g, theta = 2*M_PI/5.0;
+            
             p1.x = 0; 
             p1.y = -height2;
             p2.x =  a;
             p2.y = -b;
 
-            float c = sqrt((p1.x-p2.x)*(p1.x-p2.x) + (p1.y-p2.y)*(p1.y-p2.y));
-            float g = c + a;
+            c = sqrt((p1.x-p2.x)*(p1.x-p2.x) + (p1.y-p2.y)*(p1.y-p2.y));
+            g = c + a;
             
             p3.x =  g;
             p3.y = -g*tan(18*deg2rad);
             
-            float thetas[] = {0, 2*M_PI/5.0, 4*M_PI/5.0, -2*M_PI/5.0, -6*M_PI/5.0};
-            // Need to figure out why this was broken by just incrementing 
-            // theta (trig functions only take args [-pi, pi]?)
             for (int i=0; i < 5; i++) {
-                float theta = thetas[i];
                 applyRot(&p1, theta);
                 applyRot(&p2, theta);
                 applyRot(&p3, theta);
@@ -60,7 +58,6 @@ void Loot::draw(void){
                              pos.x + p2.x, pos.y + p2.y, color, 4);
                 al_draw_line(pos.x + p2.x, pos.y + p2.y, 
                              pos.x + p3.x, pos.y + p3.y, color, 4);
-            
             }
             break;
     } 

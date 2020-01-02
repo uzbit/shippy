@@ -8,7 +8,7 @@ using namespace std;
 class Collision{
 
     public:
-    Collision(){}
+    Collision():left(true), right(true), top(true), bottom(true){};
     Collision(bool left, bool right, bool top, bool bottom)
         :left(left), right(right), top(top), bottom(bottom){
         collides = (left && right && bottom && top);
