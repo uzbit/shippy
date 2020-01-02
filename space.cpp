@@ -39,9 +39,9 @@ void Space::init(void){
     // make one body ground for lowest coordy
     if (coordy == 0){
         bodies[0]->pos.x = WINDOW_WIDTH/2;
-        bodies[0]->pos.y = WINDOW_HEIGHT - 25;
+        bodies[0]->pos.y = WINDOW_HEIGHT - EARTH_HEIGHT/2;
         bodies[0]->width = WINDOW_WIDTH + 1000;
-        bodies[0]->height = 50;
+        bodies[0]->height = EARTH_HEIGHT;
         bodies[0]->width2 = bodies[0]->width/2;
         bodies[0]->height2 = bodies[0]->height/2;
         bodies[0]->filled = true;
@@ -85,7 +85,10 @@ void Space::init(void){
 }
 
 void Space::draw(void){
-    for (int i=body_count-1; i >=0 ; i--)
+    //for (int i=body_count-1; i >=0 ; i--)
+     //   bodies[i]->draw();
+    
+    for (int i=0; i < body_count; i++)
         bodies[i]->draw();
     
     for (int i=0; i < loots.size() ; i++)

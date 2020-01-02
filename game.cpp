@@ -12,6 +12,7 @@
 #include "space.h"
 #include "ship.h"
 #include "loot.h"
+#include "body.h"
 
 using namespace std;
 
@@ -133,6 +134,12 @@ void Game::update_space(void){
         ship->pos.y = ship->height2;
         coordy -= 1;
     }
+
+    // fix falling through Earth.
+    if (ship->pos.y + ship->height2 > WINDOW_HEIGHT - EARTH_HEIGHT && coordy == 0){
+        ship->pos.y = WINDOW_HEIGHT - EARTH_HEIGHT - ship->height2;
+    }
+
 }
 
 int Game::get_space_index(void){
@@ -157,29 +164,28 @@ void Game::draw_info(void){
 
 void Game::collide_ship_bodies(void){
     for (int i=0; i < spaces[space_index].body_count; i++){
-        Collision collision = ship->collides(spaces[space_index].bodies[i]);
+        Body *body = spaces[space_index].bodies[i];
+        Collision collision = ship->collides(body);
         if (collision.collides){
-            Collision *prev = &(spaces[space_index].bodies[i]->prev_collision);
+            Collision *prev = &(body->prev_collision);
             if (!prev->collides){
                 if (!prev->top || !prev->bottom){
-                    if (!prev->bottom && collision.bottom) 
-                        ship->pos.y = spaces[space_index].bodies[i]->rect.tl.y - ship->height2 - 1;
-                    if (!prev->top && collision.top) 
-                        ship->pos.y = spaces[space_index].bodies[i]->rect.br.y + ship->height2 + 1;
+                    if (!prev->top) 
+                        ship->pos.y = body->rect.br.y + ship->height2 + 0.1;
+                    if (!prev->bottom) 
+                        ship->pos.y = body->rect.tl.y - ship->height2 - 0.1;
                     ship->vel.y = 0;
-                    ship->accel.y = 0;
                 }
                 if (!prev->left || !prev->right){
-                    if (!prev->left  && collision.left) 
-                        ship->pos.x = spaces[space_index].bodies[i]->rect.tl.x - ship->width2 - 1;
-                    if (!prev->right && collision.right) 
-                        ship->pos.x = spaces[space_index].bodies[i]->rect.br.x + ship->width2 + 1;
+                    if (!prev->left) 
+                        ship->pos.x = body->rect.tl.x - ship->width2 - 0.1;
+                    if (!prev->right) 
+                        ship->pos.x = body->rect.br.x + ship->width2 + 0.1;
                     ship->vel.x = 0;
-                    ship->accel.x = 0;
                 }      
             }
         } else {
-            spaces[space_index].bodies[i]->prev_collision = collision;
+            body->prev_collision = collision;
         }
     }
 }
