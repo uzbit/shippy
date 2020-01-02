@@ -163,17 +163,17 @@ void Game::collide_ship_bodies(void){
             if (!prev->collides){
                 if (!prev->top || !prev->bottom){
                     if (!prev->bottom && collision.bottom) 
-                        ship->pos.y = spaces[space_index].bodies[i]->rect.tl.y - ship->height2 - 0.1;
+                        ship->pos.y = spaces[space_index].bodies[i]->rect.tl.y - ship->height2 - 1;
                     if (!prev->top && collision.top) 
-                        ship->pos.y = spaces[space_index].bodies[i]->rect.br.y + ship->height2 + 0.1;
+                        ship->pos.y = spaces[space_index].bodies[i]->rect.br.y + ship->height2 + 1;
                     ship->vel.y = 0;
                     ship->accel.y = 0;
                 }
                 if (!prev->left || !prev->right){
                     if (!prev->left  && collision.left) 
-                        ship->pos.x = spaces[space_index].bodies[i]->rect.tl.x - ship->width2 - 0.1;
+                        ship->pos.x = spaces[space_index].bodies[i]->rect.tl.x - ship->width2 - 1;
                     if (!prev->right && collision.right) 
-                        ship->pos.x = spaces[space_index].bodies[i]->rect.br.x + ship->width2 + 0.1;
+                        ship->pos.x = spaces[space_index].bodies[i]->rect.br.x + ship->width2 + 1;
                     ship->vel.x = 0;
                     ship->accel.x = 0;
                 }      
