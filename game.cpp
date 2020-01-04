@@ -70,6 +70,7 @@ void Game::init_game(void){
     ship = new Ship(WINDOW_WIDTH/2, WINDOW_HEIGHT/2, FUEL_START, SHIP_MASS);
     add_space(0, 0);
     adjust_ship_position();
+    biases.load();
 }
 
 void Game::adjust_ship_position(void){

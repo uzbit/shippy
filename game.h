@@ -7,6 +7,7 @@
 #include "ship.h"
 #include "loot.h"
 #include "space.h"
+#include "biases.h"
 
 using namespace std;
 
@@ -19,7 +20,11 @@ class Game{
 
     void init_graphics(void);
     void init_game(void);
-    
+    void loop(void);
+    void abort(const char* message);
+    void shutdown(void);
+
+    private:
     void add_space(int coordx, int coordy);
     void adjust_ship_position(void);
     void update_graphics(void);
@@ -31,11 +36,6 @@ class Game{
     void collide_ship_loot(void);
     void apply_loot(Loot *loot);
 
-    void loop(void);
-    void abort(const char* message);
-    void shutdown(void);
-
-    private:
     bool done;
     ALLEGRO_EVENT_QUEUE* event_queue;
     ALLEGRO_TIMER* timer;
@@ -46,6 +46,8 @@ class Game{
     vector<Space> spaces;
     int coordx, coordy;
     int space_index;
+    Biases biases;
+    
 };
 
 

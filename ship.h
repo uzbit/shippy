@@ -25,20 +25,23 @@ class Ship : public Object{
     void update(void);
     void thrust_vertical(float scale);
     void thrust_horizontal(float scale);
-    void draw_flame(ALLEGRO_TRANSFORM *transform);
-    void draw_flames(void);
     void draw(void);
 
     Point vel;
     Point accel;
-    
-    float mass;
     float fuel, fuel_start;
+    
+    private:
+    float mass;
     float thrustx, thrusty;
     int thrust_dir;
     int flame_counter[4];
     float thick;
     
+    void draw_flame(ALLEGRO_TRANSFORM *transform);
+    void draw_flames(void);
+    
+
 };
 
 
