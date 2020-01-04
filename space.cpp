@@ -85,10 +85,7 @@ void Space::init(void){
 }
 
 void Space::draw(void){
-    //for (int i=body_count-1; i >=0 ; i--)
-     //   bodies[i]->draw();
-    
-    for (int i=0; i < body_count; i++)
+    for (int i=body_count-1; i >=0 ; i--)
         bodies[i]->draw();
     
     for (int i=0; i < loots.size() ; i++)
