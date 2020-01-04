@@ -8,6 +8,7 @@
 #include "loot.h"
 #include "space.h"
 #include "biases.h"
+#include "duder.h"
 
 using namespace std;
 
@@ -34,6 +35,9 @@ class Game{
     void draw_info(void);
     void collide_ship_bodies(void);
     void collide_ship_loot(void);
+    void collide_ship_duder(void);
+    void collide_duder_bodies(void);
+    void draw_duder_bias(Duder *duder);
     void apply_loot(Loot *loot);
 
     bool done;
@@ -47,7 +51,7 @@ class Game{
     int coordx, coordy;
     int space_index;
     Biases biases;
-    
+
 };
 
 

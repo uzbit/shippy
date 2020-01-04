@@ -17,7 +17,6 @@ class Body : public Object{
     bool filled;
     int round;
     ALLEGRO_COLOR color;
-    Collision prev_collision;
 };
     
 

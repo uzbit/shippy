@@ -23,7 +23,6 @@ class Loot : public Object{
     float value;
     ALLEGRO_COLOR color;
     LootType type;
-    Collision prev_collision;
 };
     
 

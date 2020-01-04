@@ -5,6 +5,7 @@
 
 #include "body.h"
 #include "loot.h"
+#include "duder.h"
 
 using namespace std;
 
@@ -22,6 +23,7 @@ class Space {
     int coordx, coordy;
 
     vector<Loot> loots;
+    vector<Duder> duders;
 
 };
 

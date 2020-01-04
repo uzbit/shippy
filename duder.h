@@ -6,22 +6,27 @@
 #include "geom.h"
 #include "object.h"
 
+using namespace std;
 
 class Duder : public Object{
 
     public:
     Duder(){};
-    Duder(float x, float y, int bias_index);
+    Duder(float x, float y, float width, float height);
     ~Duder(){};
 
     void update(void);
     void draw(void);
 
+    bool is_killed;
+    int random_val;
+    pair<string, string> bias;
+    ALLEGRO_COLOR color;
+    
     private:
     Point vel;
-    int bias_index;
-    void draw_flame(ALLEGRO_TRANSFORM *transform);
-    void draw_flames(void);
+    float thick;
+    
 };
 
 

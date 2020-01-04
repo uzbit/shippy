@@ -104,6 +104,8 @@ void Game::update_graphics(void){
     spaces[space_index].draw();
     ship->draw();
     draw_info();
+    for (int i=0; i < spaces[space_index].duders.size(); i++)
+        draw_duder_bias(&spaces[space_index].duders[i]);
 }
 
 void Game::update_game(void){
@@ -116,6 +118,7 @@ void Game::update_game(void){
     update_space();
     collide_ship_bodies();
     collide_ship_loot();
+    collide_ship_duder();
 }
 
 void Game::update_space(void){
@@ -140,6 +143,9 @@ void Game::update_space(void){
     if (ship->pos.y + ship->height2 > WINDOW_HEIGHT - EARTH_HEIGHT && coordy == 0){
         ship->pos.y = WINDOW_HEIGHT - EARTH_HEIGHT - ship->height2;
     }
+
+    for (int i=0; i < spaces[space_index].duders.size() ; i++)
+        spaces[space_index].duders[i].update();
 
 }
 
@@ -205,6 +211,44 @@ void Game::collide_ship_loot(void){
     }
 }
 
+void Game::collide_ship_duder(void){
+    Space *curr_space = &spaces[space_index];
+
+    for (int i=0; i < curr_space->duders.size(); i++){
+        if (curr_space->duders[i].is_killed) continue;
+
+        Collision collision = ship->collides(&curr_space->duders[i]);
+        if (collision.collides){
+            int count = 0;
+            map<string, string>::iterator it;
+            for (it=biases.biases.begin(); it != biases.biases.end(); it++){
+                if (count == curr_space->duders[i].random_val % biases.biases.size())
+                    break;
+                count++;
+            }
+            curr_space->duders[i].bias = *it;
+            curr_space->duders[i].is_killed = true;
+            cout << curr_space->duders[i].bias.first << endl;
+        } else {
+            curr_space->duders[i].prev_collision = collision;
+        }
+    }
+}
+
+void Game::draw_duder_bias(Duder *duder){
+    if (duder->is_killed){
+        size_t bufsize = duder->bias.first.size() + duder->bias.second.size() + 10;
+        char buf[bufsize];
+        sprintf(buf, "%s:\n%s", 
+            duder->bias.first.c_str(), duder->bias.second.c_str());
+
+        al_draw_text(
+            font, duder->color, duder->pos.x, 
+            duder->pos.y, 0, buf
+        );
+    }
+}
+    
 void Game::apply_loot(Loot *loot){
     switch(loot->type){
         case FUEL:

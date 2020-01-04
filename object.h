@@ -25,6 +25,7 @@ class Object{
     Rect rect;
     float width, height;
     float width2, height2;
+    Collision prev_collision;
 };
 
 
