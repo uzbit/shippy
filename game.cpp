@@ -103,9 +103,9 @@ void Game::add_space(int coordx, int coordy){
 void Game::update_graphics(void){
     spaces[space_index].draw();
     ship->draw();
-    draw_info();
     for (int i=0; i < spaces[space_index].duders.size(); i++)
         draw_duder_bias(&spaces[space_index].duders[i]);
+    draw_info();
 }
 
 void Game::update_game(void){
@@ -220,16 +220,16 @@ void Game::collide_ship_duder(void){
 
         Collision collision = ship->collides(&curr_space->duders[i]);
         if (collision.collides){
-            int count = 0;
+            int count = 0, mod = curr_space->duders[i].random_val % biases.biases.size();
             map<string, string>::iterator it;
             for (it=biases.biases.begin(); it != biases.biases.end(); it++){
-                if (count == curr_space->duders[i].random_val % biases.biases.size())
+                if (count == mod)
                     break;
                 count++;
             }
-            curr_space->duders[i].bias = *it;
+            curr_space->duders[i].bias = &(*it);
             curr_space->duders[i].is_killed = true;
-            cout << curr_space->duders[i].bias.first << endl;
+            cout << curr_space->duders[i].bias->first << endl;
         } else {
             curr_space->duders[i].prev_collision_map[ship] = collision;
         }
@@ -262,54 +262,54 @@ void Game::collide_duder_bodies(void){
 }
 
 void Game::draw_duder_bias(Duder *duder){
-    if (duder->is_killed){
-        char buf[500];
-        memset(buf, 0, sizeof(buf));
-        int countword = 0, lastbr = 0, linenum = 0;
-        string txt = duder->bias.second;
-        int maxwords = 7;
-        int tw = 0;
-        float posx, posy = duder->pos.y - 60;
-        
-        for (int i=0; i < txt.size(); i++){
-            if (txt[i] == ' '){
-                countword++;
-            }
-            if (countword >= maxwords){
-                lastbr = i;
-                linenum++;
-                countword = 0;
-                if (!tw){
-                    tw = al_get_text_width(font, buf) + 30;
-                    posx = duder->pos.x - tw/2;
-                    if (posx+tw > WINDOW_WIDTH) posx = WINDOW_WIDTH-tw;
-                    if (posx < 0) posx = 30;
-                }
-                al_draw_text(
-                    font, duder->color, posx, 
-                    posy+linenum*20, 0, buf
-                );
-                memset(buf, 0, sizeof(buf));
-            }
-            
-            if (i-lastbr < sizeof(buf))
-                buf[i-lastbr] = txt[i]; 
-            else
-                countword = maxwords + 1;
-        }
-        //draw last line
-        linenum++;
-        al_draw_text(
-            font, duder->color, posx, 
-            posy+linenum*20, 0, buf
-        );
+    if (!duder->is_killed) return;
 
-        sprintf(buf, "%s:", duder->bias.first.c_str());
-        al_draw_text(
-            font, duder->color, posx, 
-            posy, 0, buf
-        );
+    char buf[500];
+    memset(buf, 0, sizeof(buf));
+    int countword = 0, lastbr = 0, linenum = 0;
+    string txt = duder->bias->second;
+    int maxwords = 7;
+    int tw = 0;
+    float posx, posy = duder->pos.y - 60;
+    
+    for (int i=0; i < txt.size(); i++){
+        if (txt[i] == ' '){
+            countword++;
+        }
+        if (countword >= maxwords){
+            lastbr = i;
+            linenum++;
+            countword = 0;
+            if (!tw){
+                tw = al_get_text_width(font, buf) + 30;
+                posx = duder->pos.x - tw/2;
+                if (posx+tw > WINDOW_WIDTH) posx = WINDOW_WIDTH-tw;
+                if (posx < 0) posx = 30;
+            }
+            al_draw_text(
+                font, duder->color, posx, 
+                posy+linenum*20, 0, buf
+            );
+            memset(buf, 0, sizeof(buf));
+        }
+        
+        if (i-lastbr < sizeof(buf))
+            buf[i-lastbr] = txt[i]; 
+        else
+            countword = maxwords + 1;
     }
+    //draw last line
+    linenum++;
+    al_draw_text(
+        font, duder->color, posx, 
+        posy+linenum*20, 0, buf
+    );
+
+    sprintf(buf, "%s:", duder->bias->first.c_str());
+    al_draw_text(
+        font, duder->color, posx, 
+        posy, 0, buf
+    );
 }
     
 void Game::apply_loot(Loot *loot){

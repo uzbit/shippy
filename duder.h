@@ -21,7 +21,7 @@ class Duder : public Object{
     Point vel;
     bool is_killed;
     int random_val;
-    pair<string, string> bias;
+    pair<const string, string> *bias;
     ALLEGRO_COLOR color;
     
     private:
