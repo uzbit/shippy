@@ -18,13 +18,13 @@ class Duder : public Object{
     void update(void);
     void draw(void);
 
+    Point vel;
     bool is_killed;
     int random_val;
     pair<string, string> bias;
     ALLEGRO_COLOR color;
     
     private:
-    Point vel;
     float thick;
     
 };

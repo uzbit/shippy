@@ -37,7 +37,7 @@ void Duder::draw(void){
     
     if (!is_killed){
         al_draw_ellipse(
-            pos.x, pos.y-width2, width2, height2,
+            pos.x, pos.y-height2, width2, height2,
             color, thick
         );
         al_draw_filled_ellipse(

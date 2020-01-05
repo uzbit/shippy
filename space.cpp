@@ -84,7 +84,7 @@ void Space::init(void){
     Duder duder;
     for (int i=0; i < duder_count; i++){
         pos = getStartPos(width, height);
-        duder = Duder(pos.x, pos.y, rand()%20 + 20, rand()%20 + 20);
+        duder = Duder(pos.x, pos.y, rand()%20 + 20, rand()%15 + 15);
         duders.push_back(duder);
     }  
     

@@ -115,10 +115,11 @@ void Game::update_game(void){
         add_space(coordx, coordy);
 
     ship->update();
-    update_space();
+    collide_duder_bodies();
     collide_ship_bodies();
     collide_ship_loot();
     collide_ship_duder();
+    update_space();
 }
 
 void Game::update_space(void){
@@ -174,7 +175,7 @@ void Game::collide_ship_bodies(void){
         Body *body = spaces[space_index].bodies[i];
         Collision collision = ship->collides(body);
         if (collision.collides){
-            Collision *prev = &(body->prev_collision);
+            Collision *prev = &(body->prev_collision_map[ship]);
             if (!prev->collides){
                 if (!prev->top || !prev->bottom){
                     if (!prev->top) 
@@ -192,7 +193,7 @@ void Game::collide_ship_bodies(void){
                 }      
             }
         } else {
-            body->prev_collision = collision;
+            body->prev_collision_map[ship] = collision;
         }
     }
 }
@@ -206,7 +207,7 @@ void Game::collide_ship_loot(void){
             apply_loot(&curr_space->loots[i]);
             curr_space->loots.erase(curr_space->loots.begin()+i);
         } else {
-            curr_space->loots[i].prev_collision = collision;
+            curr_space->loots[i].prev_collision_map[ship] = collision;
         }
     }
 }
@@ -230,21 +231,83 @@ void Game::collide_ship_duder(void){
             curr_space->duders[i].is_killed = true;
             cout << curr_space->duders[i].bias.first << endl;
         } else {
-            curr_space->duders[i].prev_collision = collision;
+            curr_space->duders[i].prev_collision_map[ship] = collision;
+        }
+    }
+}
+
+void Game::collide_duder_bodies(void){
+    Space *curr_space = &spaces[space_index];
+
+    for (int i=0; i < curr_space->duders.size(); i++){
+        if (curr_space->duders[i].is_killed) continue;
+        for (int j=0; j < curr_space->body_count; j++){
+            Collision collision = curr_space->duders[i].collides(curr_space->bodies[j]);
+            if (collision.collides){
+                Collision *prev = &(curr_space->duders[i].prev_collision_map[curr_space->bodies[j]]);
+            
+                if (!prev->collides){
+                    if (!prev->top || !prev->bottom){
+                        curr_space->duders[i].vel.y = -curr_space->duders[i].vel.y;
+                    }
+                    if (!prev->left || !prev->right){
+                        curr_space->duders[i].vel.x = -curr_space->duders[i].vel.x;
+                    }
+                }
+            } else {
+                curr_space->duders[i].prev_collision_map[curr_space->bodies[j]] = collision;
+            }
         }
     }
 }
 
 void Game::draw_duder_bias(Duder *duder){
     if (duder->is_killed){
-        size_t bufsize = duder->bias.first.size() + duder->bias.second.size() + 10;
-        char buf[bufsize];
-        sprintf(buf, "%s:\n%s", 
-            duder->bias.first.c_str(), duder->bias.second.c_str());
-
+        char buf[500];
+        memset(buf, 0, sizeof(buf));
+        int countword = 0, lastbr = 0, linenum = 0;
+        string txt = duder->bias.second;
+        int maxwords = 7;
+        int tw = 0;
+        float posx, posy = duder->pos.y - 60;
+        
+        for (int i=0; i < txt.size(); i++){
+            if (txt[i] == ' '){
+                countword++;
+            }
+            if (countword >= maxwords){
+                lastbr = i;
+                linenum++;
+                countword = 0;
+                if (!tw){
+                    tw = al_get_text_width(font, buf) + 30;
+                    posx = duder->pos.x - tw/2;
+                    if (posx+tw > WINDOW_WIDTH) posx = WINDOW_WIDTH-tw;
+                    if (posx < 0) posx = 30;
+                }
+                al_draw_text(
+                    font, duder->color, posx, 
+                    posy+linenum*20, 0, buf
+                );
+                memset(buf, 0, sizeof(buf));
+            }
+            
+            if (i-lastbr < sizeof(buf))
+                buf[i-lastbr] = txt[i]; 
+            else
+                countword = maxwords + 1;
+        }
+        //draw last line
+        linenum++;
         al_draw_text(
-            font, duder->color, duder->pos.x, 
-            duder->pos.y, 0, buf
+            font, duder->color, posx, 
+            posy+linenum*20, 0, buf
+        );
+
+        sprintf(buf, "%s:", duder->bias.first.c_str());
+        al_draw_text(
+            font, duder->color, posx, 
+            posy, 0, buf
         );
     }
 }

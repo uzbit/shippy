@@ -16,7 +16,7 @@ void Biases::load(void){
             key = key.substr(0, key.find_last_not_of(" ") + 1);
 
             value = line.substr(pos + 1, line.size());
-            value = value.substr(value.find_first_not_of(" "), value.size());
+            //value = value.substr(value.find_first_not_of(" "), value.size());
 
             biases[key] = value;
         }

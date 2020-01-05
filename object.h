@@ -1,6 +1,7 @@
 #ifndef _OBJECT_H_
 #define _OBJECT_H_
 
+#include <map>
 #include "geom.h"
 #include "collision.h"
 
@@ -25,7 +26,8 @@ class Object{
     Rect rect;
     float width, height;
     float width2, height2;
-    Collision prev_collision;
+    map<Object *, Collision> prev_collision_map;
+    
 };
 
 
