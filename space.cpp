@@ -56,7 +56,7 @@ void Space::init(void){
     }
     
 
-    int loot_count = rand() % 3;
+    int loot_count = rand() % 5;
     Loot loot;
     for (int i=0; i < loot_count; i++){
         int type = rand() % NUM_LOOT;
