@@ -41,13 +41,13 @@ void Star::draw(){
 }
 
 Starfield::Starfield(){
-    num_stars = 100 + rand() % 50;
+    num_stars = 75 + rand() % 50;
     int posx, posy, lifespan, delay;
     for(int i = 0; i < num_stars; i++){
         posx = rand() % int(WINDOW_WIDTH);
         posy = rand() % int(WINDOW_HEIGHT);
         //cout << posx << posy << endl;
-        lifespan = 200 + rand() % 500;
+        lifespan = 75 + rand() % 500;
         stars.push_back(Star(
             posx, posy, lifespan
         ));
