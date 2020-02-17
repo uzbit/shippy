@@ -13,8 +13,11 @@ Ship::Ship(float x, float y, float fuel, float mass)
 :Object(x, y, 10, 40), fuel(fuel), mass(mass), thick(4){
     pos.x = x;
     pos.y = y;
+    prev_pos.x = x;
+    prev_pos.y = y;
     thrustx = THRUST_X;
     thrusty = THRUST_Y;
+    offset = al_get_time();
     fuel_start = fuel;
     thrust_dir = NONE;
     memset(flame_counter, 0, sizeof(flame_counter));
@@ -60,9 +63,22 @@ void Ship::thrust_vertical(float scale){
     //cout << "ACCELY " << accel.y << endl;
 }
 
-void Ship::update(void){
+void Ship::update(ALLEGRO_EVENT &e){
+    
+    // prev_t = cur_t;
+    // prev_pos = pos;
+    // cur_t = e.timer.count * FRAME_RATE;
+    // pos.x += vel.x;
+    // pos.y += vel.y;
+    // float int_t = al_get_time() - offset;
+    // float scale = (int_t - FRAME_RATE - prev_t) / (cur_t - prev_t);
+    // printf("%f, %f, %f, %f \n", int_t, prev_t, cur_t, scale);
+    // pos.x = prev_pos.x + (pos.x - prev_pos.x) * scale;
+    // pos.y = prev_pos.y + (pos.y - prev_pos.y) * scale;
+    
     pos.x += vel.x;
     pos.y += vel.y;
+    
     vel.x += accel.x;
     vel.y += GRAVITY + accel.y;
     accel.x = 0;
@@ -109,7 +125,7 @@ void Ship::draw(void){
     
     al_draw_rounded_rectangle(
         rect.tl.x, rect.tl.y, rect.br.x, rect.br.y,
-        1, 1, al_map_rgb(255, 255, 2), thick
+        1, 1, al_map_rgb(2, 255, 255), thick //al_map_rgb(255, 255, 2), thick
     );
     
     if (fuel > 0){

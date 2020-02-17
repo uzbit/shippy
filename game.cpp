@@ -39,7 +39,7 @@ void Game::init_graphics(void){
     if (!al_install_keyboard())
         abort("Failed to install keyboard");
     
-    timer = al_create_timer(1.0 / 60);
+    timer = al_create_timer(FRAME_RATE);
     if (!timer)
         abort("Failed to create timer");
 
@@ -47,7 +47,9 @@ void Game::init_graphics(void){
     al_init_font_addon();
     al_init_ttf_addon();
 
-    al_set_new_display_flags(ALLEGRO_WINDOWED | ALLEGRO_OPENGL);
+    al_set_new_display_flags(ALLEGRO_WINDOWED);
+    al_set_new_display_option(ALLEGRO_SWAP_METHOD, 2, ALLEGRO_REQUIRE);
+    al_set_new_display_refresh_rate(60);
     display = al_create_display(WINDOW_WIDTH, WINDOW_HEIGHT);
     if (!display)
         abort("Failed to create display");
@@ -110,14 +112,14 @@ void Game::update_graphics(void){
     draw_info();
 }
 
-void Game::update_game(void){
+void Game::update_game(ALLEGRO_EVENT &e){
     get_space_index();
     
     if (space_index < 0)
         add_space(coordx, coordy);
 
     starfield.update();
-    ship->update();
+    ship->update(e);
     collide_duder_bodies();
     collide_ship_bodies();
     collide_ship_loot();
@@ -340,7 +342,7 @@ void Game::loop(void){
         
         if (event.type == ALLEGRO_EVENT_TIMER) {
             redraw = true;
-            update_game();
+            update_game(event);
         }
 
         if (al_key_down(&keys, ALLEGRO_KEY_UP))

@@ -22,7 +22,7 @@ class Ship : public Object{
     Ship(float x, float y, float fuel, float mass);
     ~Ship(){};
 
-    void update(void);
+    void update(ALLEGRO_EVENT &e);
     void thrust_vertical(float scale);
     void thrust_horizontal(float scale);
     void draw(void);
@@ -32,6 +32,9 @@ class Ship : public Object{
     float fuel, fuel_start;
     
     private:
+    Point prev_pos;
+    float offset;
+    float prev_t, cur_t;
     float mass;
     float thrustx, thrusty;
     int thrust_dir;

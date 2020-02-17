@@ -33,7 +33,7 @@ class Game{
     void add_space(int coordx, int coordy);
     void adjust_ship_position(void);
     void update_graphics(void);
-    void update_game(void);
+    void update_game(ALLEGRO_EVENT &e);
     void update_space(void);
     int get_space_index(void);
     void draw_info(void);
