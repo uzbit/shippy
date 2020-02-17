@@ -15,7 +15,7 @@ class Space {
     Space(int body_count, int coordx, int coordy);
     ~Space(){};
 
-    void init(void);
+    void init(int difficulty);
     void draw(void);
     
     Body **bodies; //should just use a vector, but we talkin bout practice.

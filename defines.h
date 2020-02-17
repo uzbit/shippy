@@ -1,6 +1,6 @@
 
 #define WINDOW_WIDTH 1*1280
-#define WINDOW_HEIGHT 1.25*768
+#define WINDOW_HEIGHT 1*768
 #define GRAVITY 0.01
 #define FUEL_MASS 3.0
 #define FUEL_START 10000

@@ -20,7 +20,7 @@ Point getStartPos(float width, float height){
     return Point(posx, posy);    
 }
 
-void Space::init(void){
+void Space::init(int difficulty){
     bodies = new Body* [body_count];
     //Body(float x, float y, float width, float height, ALLEGRO_COLOR color, bool filled);
     int max_size = 400;
@@ -56,8 +56,9 @@ void Space::init(void){
     }
     
 
-    int loot_count = rand() % 7;
     Loot loot;
+    int loot_count = rand() % ((10 - difficulty) + 2);
+    
     for (int i=0; i < loot_count; i++){
         int type = rand() % NUM_LOOT;
         pos = getStartPos(width, height);

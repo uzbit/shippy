@@ -4,6 +4,7 @@
 #include <allegro5/allegro5.h>
 #include <allegro5/allegro_font.h>
 #include <vector>
+#include <set>
 #include "ship.h"
 #include "loot.h"
 #include "space.h"
@@ -25,6 +26,8 @@ class Game{
     void loop(void);
     void abort(const char* message);
     void shutdown(void);
+
+    int difficulty;
 
     private:
     void add_space(int coordx, int coordy);
@@ -52,6 +55,7 @@ class Game{
     int coordx, coordy;
     int space_index;
     Biases biases;
+    set<string> biases_groked;
     Starfield starfield;
 
 };

@@ -18,7 +18,7 @@
 using namespace std;
 
 Game::Game()
-:coordx(0), coordy(0), space_index(-1), done(false){
+:coordx(0), coordy(0), space_index(-1), done(false), difficulty(1){
 }
 
 Game::~Game(){
@@ -96,7 +96,7 @@ void Game::adjust_ship_position(void){
 
 void Game::add_space(int coordx, int coordy){
     Space space = Space(rand()%10 + 1, coordx, coordy);
-    space.init();
+    space.init(difficulty);
     spaces.push_back(space); 
     space_index = spaces.size() - 1;
 }  
@@ -168,8 +168,8 @@ void Game::draw_info(void){
     ALLEGRO_COLOR color = al_map_rgb(255, 255, 255);
     float speed = sqrt(ship->vel.x*ship->vel.x + ship->vel.y*ship->vel.y);
     al_draw_textf(font, color, 10, 10, 0,
-        "Space Coordinate: (%d, %d) | Spaces Discovered: %ld | Speed: %.1f | Fuel: %.1f", 
-        coordx, coordy, spaces.size(), speed, ship->fuel
+        "Space Coordinate: (%d, %d) | Spaces Discovered: %ld | Biases Groked: %ld/%ld | Speed: %.1f | Fuel: %.1f", 
+        coordx, coordy, spaces.size(), biases_groked.size(), biases.biases.size(), speed, ship->fuel
     );
 }
 
@@ -233,6 +233,7 @@ void Game::collide_ship_duder(void){
             curr_space->duders[i].bias = &(*it);
             curr_space->duders[i].is_killed = true;
             cout << curr_space->duders[i].bias->first << endl;
+            biases_groked.insert(curr_space->duders[i].bias->first);
         } else {
             curr_space->duders[i].prev_collision_map[ship] = collision;
         }
