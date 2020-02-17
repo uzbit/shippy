@@ -56,7 +56,7 @@ void Space::init(void){
     }
     
 
-    int loot_count = rand() % 5;
+    int loot_count = rand() % 7;
     Loot loot;
     for (int i=0; i < loot_count; i++){
         int type = rand() % NUM_LOOT;
@@ -80,7 +80,7 @@ void Space::init(void){
         }
     }
 
-    int duder_count = rand() % 3;
+    int duder_count = rand() % 4;
     Duder duder;
     for (int i=0; i < duder_count; i++){
         pos = getStartPos(width, height);

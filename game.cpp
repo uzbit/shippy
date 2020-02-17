@@ -13,6 +13,7 @@
 #include "ship.h"
 #include "loot.h"
 #include "body.h"
+#include "starfield.h"
 
 using namespace std;
 
@@ -101,6 +102,7 @@ void Game::add_space(int coordx, int coordy){
 }  
 
 void Game::update_graphics(void){
+    starfield.draw();
     spaces[space_index].draw();
     ship->draw();
     for (int i=0; i < spaces[space_index].duders.size(); i++)
@@ -114,6 +116,7 @@ void Game::update_game(void){
     if (space_index < 0)
         add_space(coordx, coordy);
 
+    starfield.update();
     ship->update();
     collide_duder_bodies();
     collide_ship_bodies();

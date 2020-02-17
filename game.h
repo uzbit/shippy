@@ -9,6 +9,7 @@
 #include "space.h"
 #include "biases.h"
 #include "duder.h"
+#include "starfield.h"
 
 using namespace std;
 
@@ -51,6 +52,7 @@ class Game{
     int coordx, coordy;
     int space_index;
     Biases biases;
+    Starfield starfield;
 
 };
 
