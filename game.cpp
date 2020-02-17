@@ -47,7 +47,7 @@ void Game::init_graphics(void){
     al_init_font_addon();
     al_init_ttf_addon();
 
-    al_set_new_display_flags(ALLEGRO_WINDOWED);
+    al_set_new_display_flags(ALLEGRO_WINDOWED | ALLEGRO_OPENGL);
     display = al_create_display(WINDOW_WIDTH, WINDOW_HEIGHT);
     if (!display)
         abort("Failed to create display");
@@ -182,16 +182,16 @@ void Game::collide_ship_bodies(void){
             if (!prev->collides){
                 if (!prev->top || !prev->bottom){
                     if (!prev->top) 
-                        ship->pos.y = body->rect.br.y + ship->height2 + 0.1;
+                        ship->pos.y = body->rect.br.y + ship->height2 + 0.05;
                     if (!prev->bottom) 
-                        ship->pos.y = body->rect.tl.y - ship->height2 - 0.1;
+                        ship->pos.y = body->rect.tl.y - ship->height2 - 0.05;
                     ship->vel.y = 0;
                 }
                 if (!prev->left || !prev->right){
                     if (!prev->left) 
-                        ship->pos.x = body->rect.tl.x - ship->width2 - 0.1;
+                        ship->pos.x = body->rect.tl.x - ship->width2 - 0.05;
                     if (!prev->right) 
-                        ship->pos.x = body->rect.br.x + ship->width2 + 0.1;
+                        ship->pos.x = body->rect.br.x + ship->width2 + 0.05;
                     ship->vel.x = 0;
                 }      
             }

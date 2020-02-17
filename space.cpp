@@ -57,7 +57,7 @@ void Space::init(int difficulty){
     
 
     Loot loot;
-    int loot_count = rand() % ((10 - difficulty) + 2);
+    int loot_count = rand() % ((10 - difficulty) + 1);
     
     for (int i=0; i < loot_count; i++){
         int type = rand() % NUM_LOOT;
