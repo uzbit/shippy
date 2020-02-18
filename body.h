@@ -15,8 +15,9 @@ class Body : public Object{
     void draw(void);
 
     bool filled;
-    int round;
+    int round, thick;
     ALLEGRO_COLOR color;
+    float density;
 };
     
 

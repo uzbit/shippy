@@ -2,8 +2,11 @@
 #include <allegro5/allegro5.h>
 #include <allegro5/allegro_primitives.h>
 #include <iostream>
+#include <math.h>
 
 #include "ship.h"
+#include "space.h"
+#include "body.h"
 #include "geom.h"
 #include "defines.h"
 
@@ -63,6 +66,29 @@ void Ship::thrust_vertical(float scale){
     //cout << "ACCELY " << accel.y << endl;
 }
 
+void Ship::gravitate_bodies(Space &space){
+
+    float G = 0.025;
+    float mass = 0, dist = 0, dx, dy;
+    int sign = 1;
+    for (int i = 0; i < space.body_count; i++){
+        if (space.coordy == 0 && i == 0) continue; // already gravitate to Earth
+        Body *b = space.bodies[i];
+        // if (b->filled){
+        //     sign = -1;
+        // } else {
+        //     sign = 1;
+        // }
+        mass = (b->width * b->height) * b->density;
+        dx = b->pos.x - pos.x;
+        dy = b->pos.y - pos.y;
+        dist = sqrt(dx*dx + dy*dy);
+        accel.x += sign * dx * mass * G / (dist*dist*dist); 
+        accel.y += sign * dy * mass * G / (dist*dist*dist); 
+        
+    }
+}
+
 void Ship::update(ALLEGRO_EVENT &e){
     
     // prev_t = cur_t;
@@ -78,7 +104,6 @@ void Ship::update(ALLEGRO_EVENT &e){
     
     pos.x += vel.x;
     pos.y += vel.y;
-    
     vel.x += accel.x;
     vel.y += GRAVITY + accel.y;
     accel.x = 0;

@@ -4,6 +4,7 @@
 
 #include <allegro5/allegro5.h>
 #include "geom.h"
+#include "space.h"
 #include "object.h"
 
 
@@ -22,6 +23,7 @@ class Ship : public Object{
     Ship(float x, float y, float fuel, float mass);
     ~Ship(){};
 
+    void gravitate_bodies(Space &space);
     void update(ALLEGRO_EVENT &e);
     void thrust_vertical(float scale);
     void thrust_horizontal(float scale);

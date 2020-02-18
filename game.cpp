@@ -98,7 +98,7 @@ void Game::adjust_ship_position(void){
 }
 
 void Game::add_space(int coordx, int coordy){
-    Space space = Space(rand()%10 + 1, coordx, coordy);
+    Space space = Space(rand()%BODY_COUNT + 1, coordx, coordy);
     space.init(difficulty);
     spaces.push_back(space); 
     space_index = spaces.size() - 1;
@@ -120,6 +120,9 @@ void Game::update_game(ALLEGRO_EVENT &e){
         add_space(coordx, coordy);
 
     starfield.update();
+#if GRAVITATE_BODIES
+    ship->gravitate_bodies(spaces[space_index]);
+#endif
     ship->update(e);
     collide_duder_bodies();
     collide_ship_bodies();
