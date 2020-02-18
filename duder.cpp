@@ -13,8 +13,8 @@ Duder::Duder(float x, float y, float width, float height)
 :Object(x, y, width, height){
     pos.x = x;
     pos.y = y;
-    vel.x = ((rand() % 200) - 100)/50.0;
-    vel.y = ((rand() % 200) - 100)/50.0;
+    vel.x = ((rand() % 300) - 150)/50.0;
+    vel.y = ((rand() % 300) - 150)/50.0;
     color = al_map_rgb(rand()%255, rand()%255, rand()%255);
     random_val = rand();
     thick = rand() % 10  +1;
