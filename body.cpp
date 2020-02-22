@@ -9,7 +9,7 @@
 Body::Body(float x, float y, float width, float height, ALLEGRO_COLOR color, bool filled)
 :Object(x, y, width, height), color(color), filled(filled){
     round = rand() % 20 + 1; 
-    density = (200 + rand() % 100) / 100.0;
+    density = (100 + rand() % 100) / 100.0;
     thick = rand() % 8 + 2;
 }
 

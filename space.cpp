@@ -23,8 +23,8 @@ Point getStartPos(float width, float height){
 void Space::init(int difficulty){
     bodies = new Body* [body_count];
     //Body(float x, float y, float width, float height, ALLEGRO_COLOR color, bool filled);
-    int max_size = 400;
-    int min_size = 50;
+    int max_size = MAX_BODY_SIZE;
+    int min_size = MIN_BODY_SIZE;
     float width, height;
     Point pos;
     for (int i=0; i < body_count; i++){

@@ -68,8 +68,8 @@ void Ship::thrust_vertical(float scale){
 
 void Ship::gravitate_bodies(Space &space){
 
-    float G = 0.025;
-    float mass = 0, dist = 0, dx, dy;
+    float G = 0.05;
+    float mass, dist, dx, dy;
     int sign = 1;
     for (int i = 0; i < space.body_count; i++){
         if (space.coordy == 0 && i == 0) continue; // already gravitate to Earth

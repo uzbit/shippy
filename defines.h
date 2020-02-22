@@ -3,12 +3,12 @@
 #define WINDOW_HEIGHT 1.25*768
 #define FRAME_RATE 1.0/60.0
 
-#define GRAVITATE_BODIES false
+#define GRAVITATE_BODIES true
 
 #if GRAVITATE_BODIES
-#define BODY_COUNT 3
+#define BODY_COUNT 5
 #define GRAVITY 0 //0.01
-#define MAX_BODY_SIZE 100
+#define MAX_BODY_SIZE 200
 #define MIN_BODY_SIZE 20
 #else
 #define BODY_COUNT 10
