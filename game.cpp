@@ -201,9 +201,8 @@ void Game::collide_ship_bodies(void){
                     ship->vel.x = 0;
                 }      
             }
-        } else {
-            body->prev_collision_map[ship] = collision;
         }
+        body->prev_collision_map[ship] = collision;
     }
 }
 
@@ -215,9 +214,8 @@ void Game::collide_ship_loot(void){
         if (collision.collides){
             apply_loot(&curr_space->loots[i]);
             curr_space->loots.erase(curr_space->loots.begin()+i);
-        } else {
-            curr_space->loots[i].prev_collision_map[ship] = collision;
         }
+        curr_space->loots[i].prev_collision_map[ship] = collision;
     }
 }
 
@@ -240,9 +238,8 @@ void Game::collide_ship_duder(void){
             curr_space->duders[i].is_killed = true;
             cout << curr_space->duders[i].bias->first << endl;
             biases_groked.insert(curr_space->duders[i].bias->first);
-        } else {
-            curr_space->duders[i].prev_collision_map[ship] = collision;
         }
+        curr_space->duders[i].prev_collision_map[ship] = collision;
     }
 }
 
@@ -264,9 +261,8 @@ void Game::collide_duder_bodies(void){
                         curr_space->duders[i].vel.x = -curr_space->duders[i].vel.x;
                     }
                 }
-            } else {
-                curr_space->duders[i].prev_collision_map[curr_space->bodies[j]] = collision;
             }
+            curr_space->duders[i].prev_collision_map[curr_space->bodies[j]] = collision;
         }
     }
 }
