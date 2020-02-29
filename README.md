@@ -12,6 +12,6 @@ INSTRUCTIONS:
 
 DISCLAIMER:
 
-Only tested on one computer running Ubuntu. Mileage may vary. Mileage increases if you have less fuel or if you collect stars, decreases when you collect fuel.
+Whats in that next space? 
 
 ![alt text](https://github.com/uzbit/shippy/blob/master/data/screen1.png)
