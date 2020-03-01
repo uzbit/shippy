@@ -46,7 +46,7 @@ void Space::init(int difficulty){
     if (coordy == 0){
         bodies[0]->pos.x = WINDOW_WIDTH/2;
         bodies[0]->pos.y = WINDOW_HEIGHT - EARTH_HEIGHT/2;
-        bodies[0]->width = WINDOW_WIDTH + 1000;
+        bodies[0]->width = WINDOW_WIDTH;
         bodies[0]->height = EARTH_HEIGHT;
         bodies[0]->width2 = bodies[0]->width/2;
         bodies[0]->height2 = bodies[0]->height/2;
