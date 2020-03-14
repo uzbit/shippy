@@ -1,6 +1,4 @@
 
-#define WINDOW_WIDTH 1*1280
-#define WINDOW_HEIGHT 1*768
 #define FRAME_RATE 1.0/60.0
 
 #define GRAVITATE_BODIES false

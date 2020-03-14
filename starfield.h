@@ -15,27 +15,28 @@ class Star : public Object {
     Star(float x, float y, int lifespan);
     ~Star(){};
 
-    void update(void);
+    void update(int w, int h);
     void draw(void);
 
     ALLEGRO_COLOR color;
     int lifespan, counter;
-
+   
 };
 
 class Starfield{
 
     public:
-    Starfield();
+    Starfield(){};
     ~Starfield(){};
 
+    void init(int w, int h);
     void update(void);
     void draw(void);
 
     private:
     int num_stars;
     vector<Star> stars;
-    
+    int window_width, window_height;
 };
 
 

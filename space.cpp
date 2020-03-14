@@ -7,14 +7,14 @@
 
 using namespace std;
 
-Space::Space(int body_count, int coordx, int coordy)
-:body_count(body_count), coordx(coordx), coordy(coordy){
+Space::Space(int body_count, int coordx, int coordy, int window_w, int window_h)
+:body_count(body_count), coordx(coordx), coordy(coordy), window_width(window_w), window_height(window_h){
 
 }
 
-Point getStartPos(float width, float height){
-    float posx = rand() % (int)(WINDOW_WIDTH - width/2);
-    float posy = rand() % (int)(WINDOW_HEIGHT - height/2);
+Point Space::getStartPos(float width, float height){
+    float posx = rand() % (int)(window_width - width/2);
+    float posy = rand() % (int)(window_height - height/2);
     if (posx - width/2 < 0) posx += width/2;
     if (posy - height/2 < 0) posy += height/2;
     return Point(posx, posy);    
@@ -44,9 +44,9 @@ void Space::init(int difficulty){
 
     // make one body ground for lowest coordy
     if (coordy == 0){
-        bodies[0]->pos.x = WINDOW_WIDTH/2;
-        bodies[0]->pos.y = WINDOW_HEIGHT - EARTH_HEIGHT/2;
-        bodies[0]->width = WINDOW_WIDTH;
+        bodies[0]->pos.x = window_width/2;
+        bodies[0]->pos.y = window_height - EARTH_HEIGHT/2;
+        bodies[0]->width = window_width;
         bodies[0]->height = EARTH_HEIGHT;
         bodies[0]->width2 = bodies[0]->width/2;
         bodies[0]->height2 = bodies[0]->height/2;

@@ -18,11 +18,11 @@ Star::Star(float x, float y, int ls)
     counter = rand() % (lifespan);
 }
 
-void Star::update(){
+void Star::update(int w, int h){
     if (counter > lifespan){
         counter = 0;
-        pos.x = rand() % int(WINDOW_WIDTH);
-        pos.y = rand() % int(WINDOW_HEIGHT);
+        pos.x = rand() % int(w);
+        pos.y = rand() % int(h);
     }
     counter++;
 }
@@ -40,12 +40,14 @@ void Star::draw(){
     ); 
 }
 
-Starfield::Starfield(){
+void Starfield::init(int w, int h){
+    window_width = w;
+    window_height = h;
     num_stars = 75 + rand() % 50;
     int posx, posy, lifespan, delay;
     for(int i = 0; i < num_stars; i++){
-        posx = rand() % int(WINDOW_WIDTH);
-        posy = rand() % int(WINDOW_HEIGHT);
+        posx = rand() % int(window_width);
+        posy = rand() % int(window_height);
         //cout << posx << posy << endl;
         lifespan = 75 + rand() % 500;
         stars.push_back(Star(
@@ -57,7 +59,7 @@ Starfield::Starfield(){
 
 void Starfield::update(void){
     for(int i = 0; i < stars.size(); i++){
-        stars[i].update();
+        stars[i].update(window_width, window_height);
     }
 }
 

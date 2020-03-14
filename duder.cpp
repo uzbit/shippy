@@ -22,12 +22,12 @@ Duder::Duder(float x, float y, float width, float height)
 }
 
 
-void Duder::update(void){
+void Duder::update(int w, int h){
     if (!is_killed){
         pos.x += vel.x;
         pos.y += vel.y;
-        if (pos.x >= WINDOW_WIDTH || pos.x <= 0) vel.x = -vel.x;
-        if (pos.y >= WINDOW_HEIGHT || pos.y <= 0) vel.y = -vel.y;
+        if (pos.x >= w || pos.x <= 0) vel.x = -vel.x;
+        if (pos.y >= h || pos.y <= 0) vel.y = -vel.y;
     }
 }
 

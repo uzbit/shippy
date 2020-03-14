@@ -15,7 +15,7 @@ class Duder : public Object{
     Duder(float x, float y, float width, float height);
     ~Duder(){};
 
-    void update(void);
+    void update(int w, int h);
     void draw(void);
 
     Point vel;

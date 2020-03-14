@@ -57,6 +57,7 @@ class Game{
     Biases biases;
     set<string> biases_groked;
     Starfield starfield;
+    int window_width, window_height;
 
 };
 

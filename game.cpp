@@ -39,6 +39,12 @@ void Game::init_graphics(void){
     if (!al_install_keyboard())
         abort("Failed to install keyboard");
     
+    ALLEGRO_MONITOR_INFO info;
+    if (al_get_monitor_info(0, &info)){
+        window_width = (int)info.x2*0.75;
+        window_height = (int)info.y2*0.75;
+    }
+   
     timer = al_create_timer(FRAME_RATE);
     if (!timer)
         abort("Failed to create timer");
@@ -48,10 +54,10 @@ void Game::init_graphics(void){
     al_init_ttf_addon();
 
     al_set_new_display_flags(ALLEGRO_WINDOWED);
-    al_set_new_display_option(ALLEGRO_SWAP_METHOD, 2, ALLEGRO_SUGGEST);
-    al_set_new_display_option(ALLEGRO_VSYNC, 1, ALLEGRO_SUGGEST);
-    al_set_new_display_refresh_rate(60);
-    display = al_create_display(WINDOW_WIDTH, WINDOW_HEIGHT);
+    // al_set_new_display_option(ALLEGRO_SWAP_METHOD, 2, ALLEGRO_SUGGEST);
+    // al_set_new_display_option(ALLEGRO_VSYNC, 1, ALLEGRO_SUGGEST);
+    // al_set_new_display_refresh_rate(60);
+    display = al_create_display(window_width, window_height);
     if (!display)
         abort("Failed to create display");
  
@@ -71,10 +77,11 @@ void Game::init_graphics(void){
 }
 
 void Game::init_game(void){
-    ship = new Ship(WINDOW_WIDTH/2, WINDOW_HEIGHT/2, FUEL_START, SHIP_MASS);
+    ship = new Ship(window_width/2, window_height/2, FUEL_START, SHIP_MASS);
     add_space(0, 0);
     adjust_ship_position();
     biases.load();
+    starfield.init(window_width, window_height);
 }
 
 void Game::adjust_ship_position(void){
@@ -84,8 +91,8 @@ void Game::adjust_ship_position(void){
         for (int i=0; i < spaces[space_index].body_count; i++){
             collision = ship->collides(spaces[space_index].bodies[i]);
             if (collision.collides){
-                posx = rand() % (int)(WINDOW_WIDTH - ship->width);
-                posy = rand() % (int)(WINDOW_HEIGHT - ship->height);
+                posx = rand() % (int)(window_width - ship->width);
+                posy = rand() % (int)(window_height - ship->height);
                 if (posx - ship->width < 0) posx += ship->width;
                 if (posy - ship->height < 0) posy += ship->height;
                 ship->pos.x = posx;
@@ -98,7 +105,7 @@ void Game::adjust_ship_position(void){
 }
 
 void Game::add_space(int coordx, int coordy){
-    Space space = Space(rand()%BODY_COUNT + 1, coordx, coordy);
+    Space space = Space(rand()%BODY_COUNT + 1, coordx, coordy, window_width, window_height);
     space.init(difficulty);
     spaces.push_back(space); 
     space_index = spaces.size() - 1;
@@ -132,30 +139,30 @@ void Game::update_game(ALLEGRO_EVENT &e){
 }
 
 void Game::update_space(void){
-    if (ship->pos.x > WINDOW_WIDTH){
+    if (ship->pos.x > window_width){
         ship->pos.x = ship->width2;
         coordx += 1;
     }
     if (ship->pos.x < 0){
-        ship->pos.x = WINDOW_WIDTH - ship->width2;
+        ship->pos.x = window_width - ship->width2;
         coordx -= 1;
     }
     if (ship->pos.y < 0){
-        ship->pos.y = WINDOW_HEIGHT - ship->height2;
+        ship->pos.y = window_height - ship->height2;
         coordy += 1;
     }
-    if (ship->pos.y > WINDOW_HEIGHT){
+    if (ship->pos.y > window_height){
         ship->pos.y = ship->height2;
         coordy -= 1;
     }
 
     // fix falling through Earth.
-    if (ship->pos.y + ship->height2 > WINDOW_HEIGHT - EARTH_HEIGHT && coordy == 0){
-        ship->pos.y = WINDOW_HEIGHT - EARTH_HEIGHT - ship->height2;
+    if (ship->pos.y + ship->height2 > window_height - EARTH_HEIGHT && coordy == 0){
+        ship->pos.y = window_height - EARTH_HEIGHT - ship->height2;
     }
 
     for (int i=0; i < spaces[space_index].duders.size() ; i++)
-        spaces[space_index].duders[i].update();
+        spaces[space_index].duders[i].update(window_width, window_height);
 
 }
 
@@ -293,7 +300,7 @@ void Game::draw_duder_bias(Duder *duder){
             if (!tw){
                 tw = al_get_text_width(font, buf) + 30;
                 posx = duder->pos.x - tw/2;
-                if (posx+tw > WINDOW_WIDTH) posx = WINDOW_WIDTH-tw;
+                if (posx+tw > window_width) posx = window_width-tw;
                 if (posx < 0) posx = 30;
             }
             al_draw_text(
