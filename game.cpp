@@ -159,6 +159,7 @@ void Game::update_space(void){
     // fix falling through Earth.
     if (ship->pos.y + ship->height2 > window_height - EARTH_HEIGHT && coordy == 0){
         ship->pos.y = window_height - EARTH_HEIGHT - ship->height2;
+        ship->vel.y = 0;
     }
 
     for (int i=0; i < spaces[space_index].duders.size() ; i++)
@@ -195,16 +196,16 @@ void Game::collide_ship_bodies(void){
             if (!prev->collides){
                 if (!prev->top || !prev->bottom){
                     if (!prev->top) 
-                        ship->pos.y = body->rect.br.y + ship->height2 + 0.05;
+                        ship->pos.y = body->rect.br.y + ship->height2 + 0.01;
                     if (!prev->bottom) 
-                        ship->pos.y = body->rect.tl.y - ship->height2 - 0.05;
+                        ship->pos.y = body->rect.tl.y - ship->height2 - 0.01;
                     ship->vel.y = 0;
                 }
                 if (!prev->left || !prev->right){
                     if (!prev->left) 
-                        ship->pos.x = body->rect.tl.x - ship->width2 - 0.05;
+                        ship->pos.x = body->rect.tl.x - ship->width2 - 0.01;
                     if (!prev->right) 
-                        ship->pos.x = body->rect.br.x + ship->width2 + 0.05;
+                        ship->pos.x = body->rect.br.x + ship->width2 + 0.01;
                     ship->vel.x = 0;
                 }      
             }
