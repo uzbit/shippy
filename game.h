@@ -1,8 +1,10 @@
 #ifndef _GAME_H_
 #define _GAME_H_
 
-#include <allegro5/allegro5.h>
+#include <allegro5/allegro.h>
 #include <allegro5/allegro_font.h>
+#include <allegro5/allegro_audio.h>
+#include <allegro5/allegro_acodec.h>
 #include <vector>
 #include <set>
 #include "ship.h"
@@ -49,6 +51,9 @@ class Game{
     ALLEGRO_TIMER* timer;
     ALLEGRO_DISPLAY* display;
     ALLEGRO_FONT *font;
+    ALLEGRO_VOICE *voice;
+    ALLEGRO_MIXER *mixer;
+    ALLEGRO_AUDIO_STREAM *stream;
 
     Ship *ship;
     vector<Space> spaces;

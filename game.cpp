@@ -1,7 +1,10 @@
-#include <allegro5/allegro5.h>
+#include <allegro5/allegro.h>
 #include <allegro5/allegro_font.h>
 #include <allegro5/allegro_ttf.h>
 #include <allegro5/allegro_primitives.h>
+#include <allegro5/allegro_audio.h>
+#include <allegro5/allegro_acodec.h>
+
 #include <iostream>
 #include <stdio.h>
 #include <stdlib.h>
@@ -52,6 +55,31 @@ void Game::init_graphics(void){
     al_init_primitives_addon();
     al_init_font_addon();
     al_init_ttf_addon();
+    al_init_acodec_addon();
+    
+    if (!al_install_audio()) {
+        abort("Could not init sound.\n");
+    }
+
+    voice = al_create_voice(44100, ALLEGRO_AUDIO_DEPTH_INT16,
+        ALLEGRO_CHANNEL_CONF_2);
+    if (!voice) {
+        abort("Could not create voice.\n");
+    }
+
+    mixer = al_create_mixer(44100, ALLEGRO_AUDIO_DEPTH_FLOAT32,
+        ALLEGRO_CHANNEL_CONF_2);
+    if (!mixer) {
+        abort("Could not create mixer.\n");
+    }
+
+    if (!al_attach_mixer_to_voice(mixer, voice)) {
+        abort("al_attach_mixer_to_voice failed.\n");
+    }
+
+    stream = al_load_audio_stream("./data/Power_Glove-Clutch.ogg", 4, 2048);
+    al_set_audio_stream_playmode(stream, ALLEGRO_PLAYMODE_LOOP);
+    al_attach_audio_stream_to_mixer(stream, mixer);
 
     al_set_new_display_flags(ALLEGRO_WINDOWED);
     // al_set_new_display_option(ALLEGRO_SWAP_METHOD, 2, ALLEGRO_SUGGEST);
@@ -396,6 +424,11 @@ void Game::shutdown(void){
  
     if (event_queue)
         al_destroy_event_queue(event_queue);
+
+    al_destroy_audio_stream(stream);
+    al_destroy_mixer(mixer);
+    al_destroy_voice(voice);
+    al_uninstall_audio();
 
     al_shutdown_primitives_addon();
 }
