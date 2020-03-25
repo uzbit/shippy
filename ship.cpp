@@ -67,6 +67,7 @@ void Ship::thrust_vertical(float scale){
 }
 
 void Ship::gravitate_bodies(Space &space){
+    if (!space.gravitate_bodies) return;
 
     float G = 0.05;
     float mass, dist, dx, dy;
@@ -105,7 +106,7 @@ void Ship::update(ALLEGRO_EVENT &e){
     pos.x += vel.x;
     pos.y += vel.y;
     vel.x += accel.x;
-    vel.y += GRAVITY + accel.y;
+    vel.y += 0.01 + accel.y; //gravity = 0.01
     accel.x = 0;
     accel.y = 0;
 }

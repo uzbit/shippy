@@ -30,7 +30,8 @@ class Game{
     void shutdown(void);
 
     int difficulty;
-
+    bool music_on;
+    
     private:
     void add_space(int coordx, int coordy);
     void adjust_ship_position(void);
@@ -63,7 +64,7 @@ class Game{
     set<string> biases_groked;
     Starfield starfield;
     int window_width, window_height;
-
+    
 };
 
 

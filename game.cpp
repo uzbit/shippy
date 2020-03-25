@@ -78,8 +78,10 @@ void Game::init_graphics(void){
     }
 
     stream = al_load_audio_stream("./data/Power_Glove-Clutch.ogg", 4, 2048);
-    al_set_audio_stream_playmode(stream, ALLEGRO_PLAYMODE_LOOP);
-    al_attach_audio_stream_to_mixer(stream, mixer);
+    if (music_on){
+        al_set_audio_stream_playmode(stream, ALLEGRO_PLAYMODE_LOOP);
+        al_attach_audio_stream_to_mixer(stream, mixer);
+    }
 
     al_set_new_display_flags(ALLEGRO_WINDOWED);
     // al_set_new_display_option(ALLEGRO_SWAP_METHOD, 2, ALLEGRO_SUGGEST);
@@ -133,7 +135,10 @@ void Game::adjust_ship_position(void){
 }
 
 void Game::add_space(int coordx, int coordy){
-    Space space = Space(rand()%BODY_COUNT + 1, coordx, coordy, window_width, window_height);
+    int num = rand() % (10*((10-difficulty) + 1));
+    bool gravitate_bodies = (num < 1);
+    //cout << num << " " << gravitate_bodies <<endl;
+    Space space = Space(rand()%BODY_COUNT + 1, coordx, coordy, window_width, window_height, gravitate_bodies);
     space.init(difficulty);
     spaces.push_back(space); 
     space_index = spaces.size() - 1;
@@ -155,10 +160,9 @@ void Game::update_game(ALLEGRO_EVENT &e){
         add_space(coordx, coordy);
 
     starfield.update();
-#if GRAVITATE_BODIES
     ship->gravitate_bodies(spaces[space_index]);
-#endif
     ship->update(e);
+
     collide_duder_bodies();
     collide_ship_bodies();
     collide_ship_loot();

@@ -13,7 +13,7 @@ using namespace std;
 class Space {
     public:
     Space(){};
-    Space(int body_count, int coordx, int coordy, int window_w, int window_h);
+    Space(int body_count, int coordx, int coordy, int window_w, int window_h, bool gravitate);
     ~Space(){};
 
     void init(int difficulty);
@@ -26,6 +26,7 @@ class Space {
     int window_width, window_height;
     vector<Loot> loots;
     vector<Duder> duders;
+    bool gravitate_bodies;
 
 };
 

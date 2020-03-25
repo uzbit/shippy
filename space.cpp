@@ -7,8 +7,8 @@
 
 using namespace std;
 
-Space::Space(int body_count, int coordx, int coordy, int window_w, int window_h)
-:body_count(body_count), coordx(coordx), coordy(coordy), window_width(window_w), window_height(window_h){
+Space::Space(int body_count, int coordx, int coordy, int window_w, int window_h, bool gravitate)
+:body_count(body_count), coordx(coordx), coordy(coordy), window_width(window_w), window_height(window_h), gravitate_bodies(gravitate){
 
 }
 
