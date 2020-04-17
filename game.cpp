@@ -136,7 +136,7 @@ void Game::adjust_ship_position(void){
 
 void Game::add_space(int coordx, int coordy){
     int num = rand() % (10*((10-difficulty) + 1));
-    bool gravitate_bodies = (num < 1);
+    bool gravitate_bodies = false; //(num < 1);
     //cout << num << " " << gravitate_bodies <<endl;
     Space space = Space(rand()%BODY_COUNT + 1, coordx, coordy, window_width, window_height, gravitate_bodies);
     space.init(difficulty);
