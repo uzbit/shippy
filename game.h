@@ -31,7 +31,8 @@ class Game{
 
     int difficulty;
     bool music_on;
-    
+    float fullscreen;
+
     private:
     void add_space(int coordx, int coordy);
     void adjust_ship_position(void);
