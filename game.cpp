@@ -44,8 +44,6 @@ void Game::init_graphics(void){
     
     ALLEGRO_MONITOR_INFO info;
     if (al_get_monitor_info(0, &info)){
-        cout << fullscreen;
-        cout << (int)(info.x2*fullscreen) <<endl;
         window_width = (int)(info.x2*fullscreen);
         window_height = (int)(info.y2*fullscreen);
     }
