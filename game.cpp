@@ -44,8 +44,10 @@ void Game::init_graphics(void){
     
     ALLEGRO_MONITOR_INFO info;
     if (al_get_monitor_info(0, &info)){
-        window_width = (int)info.x2*0.75;
-        window_height = (int)info.y2*0.75;
+        cout << fullscreen;
+        cout << (int)(info.x2*fullscreen) <<endl;
+        window_width = (int)(info.x2*fullscreen);
+        window_height = (int)(info.y2*fullscreen);
     }
    
     timer = al_create_timer(FRAME_RATE);
