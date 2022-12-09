@@ -41,6 +41,7 @@ void Star::draw(){
 }
 
 void Starfield::init(int w, int h){
+    stars.clear();
     window_width = w;
     window_height = h;
     num_stars = 75 + rand() % 50;

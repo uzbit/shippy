@@ -406,6 +406,9 @@ void Game::loop(void){
         if (al_key_down(&keys, ALLEGRO_KEY_ESCAPE))
             done = true;
         
+        if (al_key_down(&keys, ALLEGRO_KEY_N))
+            init_game();
+        
         if (redraw && al_is_event_queue_empty(event_queue)) {
             redraw = false;
             al_clear_to_color(al_map_rgb(0, 0, 0));
