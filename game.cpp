@@ -391,16 +391,16 @@ void Game::loop(void){
             update_game(event);
         }
 
-        if (al_key_down(&keys, ALLEGRO_KEY_UP))
+        if (al_key_down(&keys, ALLEGRO_KEY_UP) || al_key_down(&keys, ALLEGRO_KEY_W))
             ship->thrust_vertical(-1);
 
-        if (al_key_down(&keys, ALLEGRO_KEY_DOWN))
+        if (al_key_down(&keys, ALLEGRO_KEY_DOWN) || al_key_down(&keys, ALLEGRO_KEY_S))
             ship->thrust_vertical(1);
 
-        if (al_key_down(&keys, ALLEGRO_KEY_RIGHT))
+        if (al_key_down(&keys, ALLEGRO_KEY_RIGHT) || al_key_down(&keys, ALLEGRO_KEY_D))
             ship->thrust_horizontal(1);
 
-        if (al_key_down(&keys, ALLEGRO_KEY_LEFT))
+        if (al_key_down(&keys, ALLEGRO_KEY_LEFT) || al_key_down(&keys, ALLEGRO_KEY_A))
             ship->thrust_horizontal(-1);
 
         if (al_key_down(&keys, ALLEGRO_KEY_ESCAPE))
