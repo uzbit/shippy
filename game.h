@@ -57,7 +57,7 @@ class Game{
     ALLEGRO_MIXER *mixer;
     ALLEGRO_AUDIO_STREAM *stream;
 
-    Ship *ship;
+    Ship *ship; // make multiplayer 
     vector<Space> spaces;
     int coordx, coordy;
     int space_index;
