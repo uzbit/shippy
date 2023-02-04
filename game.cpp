@@ -101,7 +101,7 @@ void Game::init_graphics(void){
     al_register_event_source(event_queue, al_get_timer_event_source(timer));
     al_register_event_source(event_queue, al_get_display_event_source(display));
     
-    font = al_load_ttf_font("data/DejaVuSans.ttf", 16, 0);
+    font = al_load_ttf_font("data/DejaVuSans.ttf", 24, 0);
     if (!font)
         abort("Failed to load font!");
 
@@ -233,14 +233,14 @@ void Game::collide_ship_bodies(void){
                         ship->pos.y = body->rect.br.y + ship->height2 + 0.01;
                     if (!prev->bottom) 
                         ship->pos.y = body->rect.tl.y - ship->height2 - 0.01;
-                    ship->vel.y = 0;
+                    ship->vel.y = -0.15*ship->vel.y ; // Josiah add tha bounce
                 }
                 if (!prev->left || !prev->right){
                     if (!prev->left) 
                         ship->pos.x = body->rect.tl.x - ship->width2 - 0.01;
                     if (!prev->right) 
                         ship->pos.x = body->rect.br.x + ship->width2 + 0.01;
-                    ship->vel.x = 0;
+                    ship->vel.x = -0.15*ship->vel.x ; // Josiah add tha bounce
                 }      
             }
         } else {
