@@ -233,14 +233,14 @@ void Game::collide_ship_bodies(void){
                         ship->pos.y = body->rect.br.y + ship->height2 + 0.01;
                     if (!prev->bottom) 
                         ship->pos.y = body->rect.tl.y - ship->height2 - 0.01;
-                    ship->vel.y = -0.15*ship->vel.y ; // Josiah add tha bounce
+                    ship->vel.y = -BOUNCE_FACTOR*ship->vel.y ; // Josiah add tha bounce
                 }
                 if (!prev->left || !prev->right){
                     if (!prev->left) 
                         ship->pos.x = body->rect.tl.x - ship->width2 - 0.01;
                     if (!prev->right) 
                         ship->pos.x = body->rect.br.x + ship->width2 + 0.01;
-                    ship->vel.x = -0.15*ship->vel.x ; // Josiah add tha bounce
+                    ship->vel.x = -BOUNCE_FACTOR*ship->vel.x ; // Josiah add tha bounce
                 }      
             }
         } else {
