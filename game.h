@@ -56,6 +56,7 @@ class Game{
     ALLEGRO_VOICE *voice;
     ALLEGRO_MIXER *mixer;
     ALLEGRO_AUDIO_STREAM *stream;
+    ALLEGRO_BITMAP *buffer;
 
     Ship *ship; // make multiplayer 
     vector<Space> spaces;
@@ -65,6 +66,7 @@ class Game{
     set<string> biases_groked;
     Starfield starfield;
     int window_width, window_height;
+    bool redraw;
     
 };
 

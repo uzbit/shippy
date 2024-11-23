@@ -86,9 +86,9 @@ void Game::init_graphics(void){
     }
 
     al_set_new_display_flags(ALLEGRO_WINDOWED);
-    // al_set_new_display_option(ALLEGRO_SWAP_METHOD, 2, ALLEGRO_SUGGEST);
-    // al_set_new_display_option(ALLEGRO_VSYNC, 1, ALLEGRO_SUGGEST);
-    // al_set_new_display_refresh_rate(60);
+    //al_set_new_display_option(ALLEGRO_SWAP_METHOD, 2, ALLEGRO_SUGGEST);
+    al_set_new_display_option(ALLEGRO_VSYNC, 1, ALLEGRO_SUGGEST);
+    al_set_new_display_refresh_rate(120);
     display = al_create_display(window_width, window_height);
     if (!display)
         abort("Failed to create display");
@@ -105,6 +105,7 @@ void Game::init_graphics(void){
     if (!font)
         abort("Failed to load font!");
 
+    buffer = al_create_bitmap(window_width, window_height);
     done = false;
 }
 
@@ -378,7 +379,6 @@ void Game::apply_loot(Loot *loot){
 }
 
 void Game::loop(void){
-    bool redraw = true;
     al_start_timer(timer);
     ALLEGRO_KEYBOARD_STATE keys;
     while (!done) {
@@ -411,8 +411,11 @@ void Game::loop(void){
         
         if (redraw && al_is_event_queue_empty(event_queue)) {
             redraw = false;
+            al_set_target_bitmap(buffer);
             al_clear_to_color(al_map_rgb(0, 0, 0));
             update_graphics();
+            al_set_target_backbuffer(display);
+            al_draw_bitmap(buffer, 0, 0, 0);
             al_flip_display();
         }
     }
@@ -434,6 +437,7 @@ void Game::shutdown(void){
     if (event_queue)
         al_destroy_event_queue(event_queue);
 
+    al_destroy_bitmap(buffer);
     al_destroy_audio_stream(stream);
     al_destroy_mixer(mixer);
     al_destroy_voice(voice);
