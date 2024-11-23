@@ -1,5 +1,5 @@
 
-#define FRAME_RATE 1.0/60.0
+#define FRAME_RATE 60
 
 #define GRAVITATE_BODIES true
 

@@ -50,7 +50,7 @@ void Game::init_graphics(void){
         window_height = (int)(info.y2*fullscreen);
     }
    
-    timer = al_create_timer(FRAME_RATE);
+    timer = al_create_timer(1.0 / FRAME_RATE);
     if (!timer)
         abort("Failed to create timer");
 
@@ -88,7 +88,7 @@ void Game::init_graphics(void){
     al_set_new_display_flags(ALLEGRO_WINDOWED);
     //al_set_new_display_option(ALLEGRO_SWAP_METHOD, 2, ALLEGRO_SUGGEST);
     al_set_new_display_option(ALLEGRO_VSYNC, 1, ALLEGRO_SUGGEST);
-    al_set_new_display_refresh_rate(120);
+    al_set_new_display_refresh_rate(2*FRAME_RATE);
     display = al_create_display(window_width, window_height);
     if (!display)
         abort("Failed to create display");
@@ -107,6 +107,7 @@ void Game::init_graphics(void){
 
     buffer = al_create_bitmap(window_width, window_height);
     done = false;
+    al_start_timer(timer);
 }
 
 void Game::init_game(void){
@@ -379,7 +380,6 @@ void Game::apply_loot(Loot *loot){
 }
 
 void Game::loop(void){
-    al_start_timer(timer);
     ALLEGRO_KEYBOARD_STATE keys;
     while (!done) {
         ALLEGRO_EVENT event;
@@ -417,6 +417,10 @@ void Game::loop(void){
             al_set_target_backbuffer(display);
             al_draw_bitmap(buffer, 0, 0, 0);
             al_flip_display();
+            // static double last_time = 0;
+            // double current_time = al_get_time();
+            // printf("Frame time: %f ms\n", (current_time - last_time) * 1000);
+            // last_time = current_time;
         }
     }
 }
