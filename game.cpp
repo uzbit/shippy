@@ -86,8 +86,8 @@ void Game::init_graphics(void){
     }
 
     al_set_new_display_flags(ALLEGRO_WINDOWED);
-    //al_set_new_display_option(ALLEGRO_SWAP_METHOD, 2, ALLEGRO_SUGGEST);
-    al_set_new_display_option(ALLEGRO_VSYNC, 1, ALLEGRO_SUGGEST);
+    al_set_new_display_option(ALLEGRO_SWAP_METHOD, 2, ALLEGRO_REQUIRE);
+    al_set_new_display_option(ALLEGRO_VSYNC, 1, ALLEGRO_REQUIRE);
     al_set_new_display_refresh_rate(2*FRAME_RATE);
     display = al_create_display(window_width, window_height);
     if (!display)
