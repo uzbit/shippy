@@ -64,20 +64,30 @@ void Space::init(int difficulty){
         pos = getStartPos(width, height);
         switch(type){
             case FUEL:
-                width = 20;
-                height = 30;
-                loot = Loot(pos.x, pos.y, width, height, al_map_rgb(255, 20, 20), (LootType)type);
-                loot.value = 100 + rand() % (int)FUEL_START/2;
-                loots.push_back(loot);
+                {
+                    float fuel_value = 100 + rand() % (int)FUEL_START/2;
+                    // Scale size: min 15x22 at value 100, max 35x52 at value ~5100
+                    float fuel_scale = (fuel_value - 100) / 5000.0f;
+                    width = 15 + fuel_scale * 20;
+                    height = 22 + fuel_scale * 30;
+                    loot = Loot(pos.x, pos.y, width, height, al_map_rgb(255, 20, 20), (LootType)type);
+                    loot.value = fuel_value;
+                    loots.push_back(loot);
+                }
                 break;
             case BOOST:
-                width = 40;
-                height = 40;
-                loot = Loot(pos.x, pos.y, width, height, al_map_rgb(255, 200, 20), (LootType)type);
-                loot.value = rand() % 5 + 2;
-                loots.push_back(loot);
+                {
+                    float boost_value = rand() % 5 + 2;
+                    // Scale size: min 25x25 at value 2, max 55x55 at value 6
+                    float boost_scale = (boost_value - 2) / 4.0f;
+                    width = 25 + boost_scale * 30;
+                    height = 25 + boost_scale * 30;
+                    loot = Loot(pos.x, pos.y, width, height, al_map_rgb(255, 200, 20), (LootType)type);
+                    loot.value = boost_value;
+                    loots.push_back(loot);
+                }
                 break;
-            
+
         }
     }
 
