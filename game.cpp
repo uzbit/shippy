@@ -84,8 +84,9 @@ void Game::init_graphics(void){
         }
     }
 
-    // Create window
-    window = SDL_CreateWindow("Shippy", window_width, window_height, SDL_WINDOW_RESIZABLE);
+    // Create window with high DPI support
+    window = SDL_CreateWindow("Shippy", window_width, window_height,
+                              SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);
     if (!window)
         abort("Failed to create window");
 
@@ -96,6 +97,9 @@ void Game::init_graphics(void){
 
     // Enable VSync
     SDL_SetRenderVSync(renderer, 1);
+
+    // Get actual render output size (may differ from window size on HiDPI)
+    SDL_GetRenderOutputSize(renderer, &window_width, &window_height);
 
     // Set global renderer for drawing functions
     g_renderer = renderer;
@@ -109,6 +113,7 @@ void Game::init_graphics(void){
     buffer = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888,
                                SDL_TEXTUREACCESS_TARGET,
                                window_width, window_height);
+    SDL_SetTextureBlendMode(buffer, SDL_BLENDMODE_BLEND);
 
     done = false;
     last_frame_time = SDL_GetTicks();
