@@ -1,8 +1,7 @@
 
-#include <allegro5/allegro5.h>
-#include <allegro5/allegro_primitives.h>
 #include <iostream>
 
+#include "sdl_compat.h"
 #include "starfield.h"
 #include "geom.h"
 #include "defines.h"
@@ -13,8 +12,8 @@ using namespace std;
 Star::Star(float x, float y, int ls)
 :Object(x, y, 1, 1){
     lifespan = ls;
-    color = al_map_rgb(rand()%255, rand()%255, rand()%255);
-    
+    color = map_rgb(rand()%255, rand()%255, rand()%255);
+
     counter = rand() % (lifespan);
 }
 
@@ -30,14 +29,8 @@ void Star::update(int w, int h){
 void Star::draw(){
     float scaledCounter = float(counter) / (lifespan);
     float scale = 4*(scaledCounter - scaledCounter*scaledCounter);
-    al_draw_filled_ellipse(
-        pos.x, pos.y, width, height,
-        al_map_rgb_f(
-            scale,
-            scale,
-            scale
-        )
-    ); 
+    GameColor star_color = map_rgb_f(scale, scale, scale);
+    draw_filled_ellipse(pos.x, pos.y, width, height, star_color);
 }
 
 void Starfield::init(int w, int h){

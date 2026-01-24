@@ -4,16 +4,10 @@ project(shippy)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(ALLEGRO5 REQUIRED
-    allegro-5
-    allegro_main-5
-    allegro_primitives-5
-    allegro_font-5
-    allegro_ttf-5
-    allegro_audio-5
-    allegro_acodec-5
-)
+# Find SDL3 and related libraries using cmake config mode
+find_package(SDL3 REQUIRED)
+find_package(SDL3_ttf REQUIRED)
+find_package(SDL3_mixer REQUIRED)
 
 set(SOURCES
     main.cpp
@@ -26,11 +20,13 @@ set(SOURCES
     biases.cpp
     duder.cpp
     starfield.cpp
+    sdl_compat.cpp
 )
 
 add_executable(shippy ${SOURCES})
 
-target_include_directories(shippy PRIVATE ${ALLEGRO5_INCLUDE_DIRS})
-target_link_directories(shippy PRIVATE ${ALLEGRO5_LIBRARY_DIRS})
-target_link_libraries(shippy ${ALLEGRO5_LIBRARIES})
-target_compile_options(shippy PRIVATE ${ALLEGRO5_CFLAGS_OTHER})
+target_link_libraries(shippy
+    SDL3::SDL3
+    SDL3_ttf::SDL3_ttf
+    SDL3_mixer::SDL3_mixer
+)

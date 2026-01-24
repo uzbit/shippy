@@ -1,10 +1,9 @@
 #ifndef _GAME_H_
 #define _GAME_H_
 
-#include <allegro5/allegro.h>
-#include <allegro5/allegro_font.h>
-#include <allegro5/allegro_audio.h>
-#include <allegro5/allegro_acodec.h>
+#include <SDL3/SDL.h>
+#include <SDL3_ttf/SDL_ttf.h>
+#include <SDL3_mixer/SDL_mixer.h>
 #include <vector>
 #include <set>
 #include "ship.h"
@@ -37,7 +36,7 @@ class Game{
     void add_space(int coordx, int coordy);
     void adjust_ship_position(void);
     void update_graphics(void);
-    void update_game(ALLEGRO_EVENT &e);
+    void update_game(void);
     void update_space(void);
     int get_space_index(void);
     void draw_info(void);
@@ -47,18 +46,18 @@ class Game{
     void collide_duder_bodies(void);
     void draw_duder_bias(Duder *duder);
     void apply_loot(Loot *loot);
+    void handle_input(void);
 
     bool done;
-    ALLEGRO_EVENT_QUEUE* event_queue;
-    ALLEGRO_TIMER* timer;
-    ALLEGRO_DISPLAY* display;
-    ALLEGRO_FONT *font;
-    ALLEGRO_VOICE *voice;
-    ALLEGRO_MIXER *mixer;
-    ALLEGRO_AUDIO_STREAM *stream;
-    ALLEGRO_BITMAP *buffer;
+    SDL_Window* window;
+    SDL_Renderer* renderer;
+    TTF_Font* font;
+    MIX_Mixer* mixer;
+    MIX_Audio* music_audio;
+    MIX_Track* music_track;
+    SDL_Texture* buffer;
 
-    Ship *ship; // make multiplayer 
+    Ship *ship; // make multiplayer
     vector<Space> spaces;
     int coordx, coordy;
     int space_index;
@@ -67,7 +66,8 @@ class Game{
     Starfield starfield;
     int window_width, window_height;
     bool redraw;
-    
+    Uint64 last_frame_time;
+
 };
 
 

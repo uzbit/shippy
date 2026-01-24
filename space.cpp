@@ -4,6 +4,7 @@
 #include "defines.h"
 #include "body.h"
 #include "space.h"
+#include "sdl_compat.h"
 
 using namespace std;
 
@@ -17,12 +18,12 @@ Point Space::getStartPos(float width, float height){
     float posy = rand() % (int)(window_height - height/2);
     if (posx - width/2 < 0) posx += width/2;
     if (posy - height/2 < 0) posy += height/2;
-    return Point(posx, posy);    
+    return Point(posx, posy);
 }
 
 void Space::init(int difficulty){
     bodies = new Body* [body_count];
-    //Body(float x, float y, float width, float height, ALLEGRO_COLOR color, bool filled);
+    //Body(float x, float y, float width, float height, GameColor color, bool filled);
     int max_size = MAX_BODY_SIZE;
     int min_size = MIN_BODY_SIZE;
     float width, height;
@@ -31,11 +32,11 @@ void Space::init(int difficulty){
         pos = getStartPos(width, height);
         width = min_size + rand()%max_size;
         height = min_size + rand()%max_size;
-         
+
         bodies[i] = new Body(
             pos.x, pos.y,
-            width, height, 
-            al_map_rgb(rand()%255, rand()%255, rand()%255), 
+            width, height,
+            map_rgb(rand()%255, rand()%255, rand()%255),
             rand()%2 > 0 ? true : false
         );
         bodies[i]->computeRect();
@@ -54,11 +55,11 @@ void Space::init(int difficulty){
         bodies[0]->round = 1;
         bodies[0]->computeRect();
     }
-    
+
 
     Loot loot;
     int loot_count = rand() % ((10 - difficulty) + 1);
-    
+
     for (int i=0; i < loot_count; i++){
         int type = rand() % NUM_LOOT;
         pos = getStartPos(width, height);
@@ -70,7 +71,7 @@ void Space::init(int difficulty){
                     float fuel_scale = (fuel_value - 100) / 5000.0f;
                     width = 15 + fuel_scale * 20;
                     height = 22 + fuel_scale * 30;
-                    loot = Loot(pos.x, pos.y, width, height, al_map_rgb(255, 20, 20), (LootType)type);
+                    loot = Loot(pos.x, pos.y, width, height, map_rgb(255, 20, 20), (LootType)type);
                     loot.value = fuel_value;
                     loots.push_back(loot);
                 }
@@ -82,7 +83,7 @@ void Space::init(int difficulty){
                     float boost_scale = (boost_value - 2) / 4.0f;
                     width = 25 + boost_scale * 30;
                     height = 25 + boost_scale * 30;
-                    loot = Loot(pos.x, pos.y, width, height, al_map_rgb(255, 200, 20), (LootType)type);
+                    loot = Loot(pos.x, pos.y, width, height, map_rgb(255, 200, 20), (LootType)type);
                     loot.value = boost_value;
                     loots.push_back(loot);
                 }
@@ -97,18 +98,18 @@ void Space::init(int difficulty){
         pos = getStartPos(width, height);
         duder = Duder(pos.x, pos.y, rand()%20 + 20, rand()%15 + 15);
         duders.push_back(duder);
-    }  
-    
+    }
+
     // for (int i=0; i < body_count; i++)
-    //     printf("%f, %f, %f, %f\n", 
+    //     printf("%f, %f, %f, %f\n",
     //         bodies[i]->rect.tl.x, bodies[i]->rect.tl.y, bodies[i]->rect.br.x, bodies[i]->rect.br.y);
-    
+
 }
 
 void Space::draw(void){
     for (int i=body_count-1; i >=0 ; i--)
         bodies[i]->draw();
-    
+
     for (int i=0; i < loots.size() ; i++)
         loots[i].draw();
 

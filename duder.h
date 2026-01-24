@@ -2,7 +2,9 @@
 #ifndef _DUDER_H_
 #define _DUDER_H_
 
-#include <allegro5/allegro5.h>
+#include <string>
+#include <utility>
+#include "sdl_compat.h"
 #include "geom.h"
 #include "object.h"
 
@@ -22,11 +24,11 @@ class Duder : public Object{
     bool is_killed;
     int random_val;
     pair<const string, string> *bias;
-    ALLEGRO_COLOR color;
-    
+    GameColor color;
+
     private:
     float thick;
-    
+
 };
 
 

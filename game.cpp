@@ -1,9 +1,6 @@
-#include <allegro5/allegro.h>
-#include <allegro5/allegro_font.h>
-#include <allegro5/allegro_ttf.h>
-#include <allegro5/allegro_primitives.h>
-#include <allegro5/allegro_audio.h>
-#include <allegro5/allegro_acodec.h>
+#include <SDL3/SDL.h>
+#include <SDL3_ttf/SDL_ttf.h>
+#include <SDL3_mixer/SDL_mixer.h>
 
 #include <iostream>
 #include <stdio.h>
@@ -17,11 +14,14 @@
 #include "loot.h"
 #include "body.h"
 #include "starfield.h"
+#include "sdl_compat.h"
 
 using namespace std;
 
 Game::Game()
-:coordx(0), coordy(0), space_index(-1), done(false), difficulty(1){
+:coordx(0), coordy(0), space_index(-1), done(false), difficulty(1),
+ window(nullptr), renderer(nullptr), font(nullptr), mixer(nullptr),
+ music_audio(nullptr), music_track(nullptr), buffer(nullptr){
 }
 
 Game::~Game(){
@@ -36,78 +36,82 @@ Game::~Game(){
 }
 
 void Game::init_graphics(void){
-    if (!al_init())
-        abort("Failed to initialize allegro");
- 
-    if (!al_install_keyboard())
-        abort("Failed to install keyboard");
-    
-    ALLEGRO_MONITOR_INFO info;
-    if (al_get_monitor_info(0, &info)){
+    if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO))
+        abort("Failed to initialize SDL");
+
+    // Get display bounds for window sizing
+    SDL_DisplayID display_id = SDL_GetPrimaryDisplay();
+    const SDL_DisplayMode* mode = SDL_GetCurrentDisplayMode(display_id);
+    if (mode) {
+        window_width = (int)(mode->w * fullscreen);
+        window_height = (int)(mode->h * fullscreen);
         cout << fullscreen;
-        cout << (int)(info.x2*fullscreen) <<endl;
-        window_width = (int)(info.x2*fullscreen);
-        window_height = (int)(info.y2*fullscreen);
-    }
-   
-    timer = al_create_timer(1.0 / FRAME_RATE);
-    if (!timer)
-        abort("Failed to create timer");
-
-    al_init_primitives_addon();
-    al_init_font_addon();
-    al_init_ttf_addon();
-    al_init_acodec_addon();
-    
-    if (!al_install_audio()) {
-        abort("Could not init sound.\n");
+        cout << window_width << endl;
+    } else {
+        window_width = 1280;
+        window_height = 720;
     }
 
-    voice = al_create_voice(44100, ALLEGRO_AUDIO_DEPTH_INT16,
-        ALLEGRO_CHANNEL_CONF_2);
-    if (!voice) {
-        abort("Could not create voice.\n");
+    // Initialize SDL_ttf
+    if (!TTF_Init())
+        abort("Failed to initialize SDL_ttf");
+
+    // Initialize SDL_mixer
+    if (!MIX_Init())
+        abort("Failed to initialize SDL_mixer");
+
+    SDL_AudioSpec spec;
+    spec.freq = 44100;
+    spec.format = SDL_AUDIO_S16;
+    spec.channels = 2;
+    mixer = MIX_CreateMixerDevice(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec);
+    if (!mixer)
+        abort("Failed to create SDL_mixer device");
+
+    // Load music
+    if (music_on) {
+        music_audio = MIX_LoadAudio(mixer, "./data/Power_Glove-Clutch.ogg", true);
+        if (music_audio) {
+            music_track = MIX_CreateTrack(mixer);
+            if (music_track) {
+                MIX_SetTrackAudio(music_track, music_audio);
+                // Set up looping playback
+                SDL_PropertiesID props = SDL_CreateProperties();
+                SDL_SetNumberProperty(props, MIX_PROP_PLAY_LOOPS_NUMBER, -1); // Loop indefinitely
+                MIX_PlayTrack(music_track, props);
+                SDL_DestroyProperties(props);
+            }
+        }
     }
 
-    mixer = al_create_mixer(44100, ALLEGRO_AUDIO_DEPTH_FLOAT32,
-        ALLEGRO_CHANNEL_CONF_2);
-    if (!mixer) {
-        abort("Could not create mixer.\n");
-    }
+    // Create window
+    window = SDL_CreateWindow("Shippy", window_width, window_height, SDL_WINDOW_RESIZABLE);
+    if (!window)
+        abort("Failed to create window");
 
-    if (!al_attach_mixer_to_voice(mixer, voice)) {
-        abort("al_attach_mixer_to_voice failed.\n");
-    }
+    // Create renderer with vsync
+    renderer = SDL_CreateRenderer(window, NULL);
+    if (!renderer)
+        abort("Failed to create renderer");
 
-    stream = al_load_audio_stream("./data/Power_Glove-Clutch.ogg", 4, 2048);
-    if (music_on){
-        al_set_audio_stream_playmode(stream, ALLEGRO_PLAYMODE_LOOP);
-        al_attach_audio_stream_to_mixer(stream, mixer);
-    }
+    // Enable VSync
+    SDL_SetRenderVSync(renderer, 1);
 
-    al_set_new_display_flags(ALLEGRO_WINDOWED);
-    al_set_new_display_option(ALLEGRO_SWAP_METHOD, 2, ALLEGRO_REQUIRE);
-    al_set_new_display_option(ALLEGRO_VSYNC, 1, ALLEGRO_REQUIRE);
-    al_set_new_display_refresh_rate(2*FRAME_RATE);
-    display = al_create_display(window_width, window_height);
-    if (!display)
-        abort("Failed to create display");
- 
-    event_queue = al_create_event_queue();
-    if (!event_queue)
-        abort("Failed to create event queue");
- 
-    al_register_event_source(event_queue, al_get_keyboard_event_source());
-    al_register_event_source(event_queue, al_get_timer_event_source(timer));
-    al_register_event_source(event_queue, al_get_display_event_source(display));
-    
-    font = al_load_ttf_font("data/DejaVuSans.ttf", 24, 0);
+    // Set global renderer for drawing functions
+    g_renderer = renderer;
+
+    // Load font
+    font = TTF_OpenFont("data/DejaVuSans.ttf", 24);
     if (!font)
         abort("Failed to load font!");
 
-    buffer = al_create_bitmap(window_width, window_height);
+    // Create render target texture for double buffering
+    buffer = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888,
+                               SDL_TEXTUREACCESS_TARGET,
+                               window_width, window_height);
+
     done = false;
-    al_start_timer(timer);
+    last_frame_time = SDL_GetTicks();
 }
 
 void Game::init_game(void){
@@ -135,7 +139,7 @@ void Game::adjust_ship_position(void){
                 break;
             }
         }
-    } while(collision.collides);    
+    } while(collision.collides);
 }
 
 void Game::add_space(int coordx, int coordy){
@@ -144,9 +148,9 @@ void Game::add_space(int coordx, int coordy){
     //cout << num << " " << gravitate_bodies <<endl;
     Space space = Space(rand()%BODY_COUNT + 1, coordx, coordy, window_width, window_height, gravitate_bodies);
     space.init(difficulty);
-    spaces.push_back(space); 
+    spaces.push_back(space);
     space_index = spaces.size() - 1;
-}  
+}
 
 void Game::update_graphics(void){
     starfield.draw();
@@ -157,15 +161,15 @@ void Game::update_graphics(void){
     draw_info();
 }
 
-void Game::update_game(ALLEGRO_EVENT &e){
+void Game::update_game(void){
     get_space_index();
-    
+
     if (space_index < 0)
         add_space(coordx, coordy);
 
     starfield.update();
     ship->gravitate_bodies(spaces[space_index]);
-    ship->update(e);
+    ship->update();
 
     collide_duder_bodies();
     collide_ship_bodies();
@@ -215,12 +219,28 @@ int Game::get_space_index(void){
 }
 
 void Game::draw_info(void){
-    ALLEGRO_COLOR color = al_map_rgb(255, 255, 255);
+    GameColor color = map_rgb(255, 255, 255);
     float speed = sqrt(ship->vel.x*ship->vel.x + ship->vel.y*ship->vel.y);
-    al_draw_textf(font, color, 10, 10, 0,
-        "Space Coordinate: (%d, %d) | Spaces Discovered: %ld | Biases Groked: %ld/%ld | Speed: %.1f | Fuel: %.1f", 
+
+    char buf[512];
+    snprintf(buf, sizeof(buf),
+        "Space Coordinate: (%d, %d) | Spaces Discovered: %ld | Biases Groked: %ld/%ld | Speed: %.1f | Fuel: %.1f",
         coordx, coordy, spaces.size(), biases_groked.size(), biases.biases.size(), speed, ship->fuel
     );
+
+    // Render text to surface, then create texture
+    SDL_Color sdl_color = {255, 255, 255, 255};
+    SDL_Surface* surface = TTF_RenderText_Blended(font, buf, 0, sdl_color);
+    if (surface) {
+        SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
+        if (texture) {
+            SDL_FRect dst = {10, 10, (float)surface->w, (float)surface->h};
+            SDL_RenderTexture(renderer, texture, NULL, &dst);
+            SDL_DestroyTexture(texture);
+        }
+        SDL_DestroySurface(surface);
+    }
+    (void)color; // Suppress unused variable warning
 }
 
 void Game::collide_ship_bodies(void){
@@ -231,19 +251,19 @@ void Game::collide_ship_bodies(void){
             Collision *prev = &(body->prev_collision_map[ship]);
             if (!prev->collides){
                 if (!prev->top || !prev->bottom){
-                    if (!prev->top) 
+                    if (!prev->top)
                         ship->pos.y = body->rect.br.y + ship->height2 + 0.01;
-                    if (!prev->bottom) 
+                    if (!prev->bottom)
                         ship->pos.y = body->rect.tl.y - ship->height2 - 0.01;
                     ship->vel.y = -BOUNCE_FACTOR*ship->vel.y ; // Josiah add tha bounce
                 }
                 if (!prev->left || !prev->right){
-                    if (!prev->left) 
+                    if (!prev->left)
                         ship->pos.x = body->rect.tl.x - ship->width2 - 0.01;
-                    if (!prev->right) 
+                    if (!prev->right)
                         ship->pos.x = body->rect.br.x + ship->width2 + 0.01;
                     ship->vel.x = -BOUNCE_FACTOR*ship->vel.x ; // Josiah add tha bounce
-                }      
+                }
             }
         } else {
             body->prev_collision_map[ship] = collision;
@@ -299,7 +319,7 @@ void Game::collide_duder_bodies(void){
             Collision collision = curr_space->duders[i].collides(curr_space->bodies[j]);
             if (collision.collides){
                 Collision *prev = &(curr_space->duders[i].prev_collision_map[curr_space->bodies[j]]);
-            
+
                 if (!prev->collides){
                     if (!prev->top || !prev->bottom){
                         curr_space->duders[i].vel.y = -curr_space->duders[i].vel.y;
@@ -325,7 +345,14 @@ void Game::draw_duder_bias(Duder *duder){
     int maxwords = 7;
     int tw = 0;
     float posx, posy = duder->pos.y - 60;
-    
+
+    SDL_Color sdl_color = {
+        (Uint8)(duder->color.r * 255),
+        (Uint8)(duder->color.g * 255),
+        (Uint8)(duder->color.b * 255),
+        255
+    };
+
     for (int i=0; i < txt.size(); i++){
         if (txt[i] == ' '){
             countword++;
@@ -335,37 +362,59 @@ void Game::draw_duder_bias(Duder *duder){
             linenum++;
             countword = 0;
             if (!tw){
-                tw = al_get_text_width(font, buf) + 30;
+                // Measure text width
+                int text_w, text_h;
+                TTF_GetStringSize(font, buf, 0, &text_w, &text_h);
+                tw = text_w + 30;
                 posx = duder->pos.x - tw/2;
                 if (posx+tw > window_width) posx = window_width-tw;
                 if (posx < 0) posx = 30;
             }
-            al_draw_text(
-                font, duder->color, posx, 
-                posy+linenum*20, 0, buf
-            );
+            // Render text
+            SDL_Surface* surface = TTF_RenderText_Blended(font, buf, 0, sdl_color);
+            if (surface) {
+                SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
+                if (texture) {
+                    SDL_FRect dst = {posx, posy + linenum * 20, (float)surface->w, (float)surface->h};
+                    SDL_RenderTexture(renderer, texture, NULL, &dst);
+                    SDL_DestroyTexture(texture);
+                }
+                SDL_DestroySurface(surface);
+            }
             memset(buf, 0, sizeof(buf));
         }
-        
+
         if (i-lastbr < sizeof(buf))
-            buf[i-lastbr] = txt[i]; 
+            buf[i-lastbr] = txt[i];
         else
             countword = maxwords + 1;
     }
     //draw last line
     linenum++;
-    al_draw_text(
-        font, duder->color, posx, 
-        posy+linenum*20, 0, buf
-    );
+    SDL_Surface* surface = TTF_RenderText_Blended(font, buf, 0, sdl_color);
+    if (surface) {
+        SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
+        if (texture) {
+            SDL_FRect dst = {posx, posy + linenum * 20, (float)surface->w, (float)surface->h};
+            SDL_RenderTexture(renderer, texture, NULL, &dst);
+            SDL_DestroyTexture(texture);
+        }
+        SDL_DestroySurface(surface);
+    }
 
-    sprintf(buf, "%s:", duder->bias->first.c_str());
-    al_draw_text(
-        font, duder->color, posx, 
-        posy, 0, buf
-    );
+    snprintf(buf, sizeof(buf), "%s:", duder->bias->first.c_str());
+    surface = TTF_RenderText_Blended(font, buf, 0, sdl_color);
+    if (surface) {
+        SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
+        if (texture) {
+            SDL_FRect dst = {posx, posy, (float)surface->w, (float)surface->h};
+            SDL_RenderTexture(renderer, texture, NULL, &dst);
+            SDL_DestroyTexture(texture);
+        }
+        SDL_DestroySurface(surface);
+    }
 }
-    
+
 void Game::apply_loot(Loot *loot){
     switch(loot->type){
         case FUEL:
@@ -379,73 +428,97 @@ void Game::apply_loot(Loot *loot){
     }
 }
 
+void Game::handle_input(void){
+    const bool* keys = SDL_GetKeyboardState(NULL);
+
+    if (keys[SDL_SCANCODE_UP] || keys[SDL_SCANCODE_W])
+        ship->thrust_vertical(-1);
+
+    if (keys[SDL_SCANCODE_DOWN] || keys[SDL_SCANCODE_S])
+        ship->thrust_vertical(1);
+
+    if (keys[SDL_SCANCODE_RIGHT] || keys[SDL_SCANCODE_D])
+        ship->thrust_horizontal(1);
+
+    if (keys[SDL_SCANCODE_LEFT] || keys[SDL_SCANCODE_A])
+        ship->thrust_horizontal(-1);
+
+    if (keys[SDL_SCANCODE_ESCAPE])
+        done = true;
+
+    if (keys[SDL_SCANCODE_N])
+        init_game();
+}
+
 void Game::loop(void){
-    ALLEGRO_KEYBOARD_STATE keys;
+    const Uint64 frame_delay = 1000 / FRAME_RATE;
+
     while (!done) {
-        ALLEGRO_EVENT event;
-        al_wait_for_event(event_queue, &event);
-        al_get_keyboard_state(&keys);
-        
-        if (event.type == ALLEGRO_EVENT_TIMER) {
-            redraw = true;
-            update_game(event);
+        Uint64 frame_start = SDL_GetTicks();
+
+        // Process events
+        SDL_Event event;
+        while (SDL_PollEvent(&event)) {
+            if (event.type == SDL_EVENT_QUIT) {
+                done = true;
+            }
         }
 
-        if (al_key_down(&keys, ALLEGRO_KEY_UP) || al_key_down(&keys, ALLEGRO_KEY_W))
-            ship->thrust_vertical(-1);
+        // Handle continuous keyboard input
+        handle_input();
 
-        if (al_key_down(&keys, ALLEGRO_KEY_DOWN) || al_key_down(&keys, ALLEGRO_KEY_S))
-            ship->thrust_vertical(1);
+        // Update game logic
+        update_game();
 
-        if (al_key_down(&keys, ALLEGRO_KEY_RIGHT) || al_key_down(&keys, ALLEGRO_KEY_D))
-            ship->thrust_horizontal(1);
+        // Render to buffer
+        SDL_SetRenderTarget(renderer, buffer);
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+        SDL_RenderClear(renderer);
+        update_graphics();
 
-        if (al_key_down(&keys, ALLEGRO_KEY_LEFT) || al_key_down(&keys, ALLEGRO_KEY_A))
-            ship->thrust_horizontal(-1);
+        // Render buffer to screen
+        SDL_SetRenderTarget(renderer, NULL);
+        SDL_RenderTexture(renderer, buffer, NULL, NULL);
+        SDL_RenderPresent(renderer);
 
-        if (al_key_down(&keys, ALLEGRO_KEY_ESCAPE))
-            done = true;
-        
-        if (al_key_down(&keys, ALLEGRO_KEY_N))
-            init_game();
-        
-        if (redraw && al_is_event_queue_empty(event_queue)) {
-            redraw = false;
-            al_set_target_bitmap(buffer);
-            al_clear_to_color(al_map_rgb(0, 0, 0));
-            update_graphics();
-            al_set_target_backbuffer(display);
-            al_draw_bitmap(buffer, 0, 0, 0);
-            al_flip_display();
-            // static double last_time = 0;
-            // double current_time = al_get_time();
-            // printf("Frame time: %f ms\n", (current_time - last_time) * 1000);
-            // last_time = current_time;
+        // Frame rate limiting (VSync should handle this, but as backup)
+        Uint64 frame_time = SDL_GetTicks() - frame_start;
+        if (frame_time < frame_delay) {
+            SDL_Delay(frame_delay - frame_time);
         }
     }
 }
 
 void Game::abort(const char* message){
-    printf("%s \n", message);
+    printf("%s: %s\n", message, SDL_GetError());
     shutdown();
     exit(1);
 }
 
 void Game::shutdown(void){
-    if (timer)
-        al_destroy_timer(timer);
- 
-    if (display)
-        al_destroy_display(display);
- 
-    if (event_queue)
-        al_destroy_event_queue(event_queue);
+    if (buffer)
+        SDL_DestroyTexture(buffer);
 
-    al_destroy_bitmap(buffer);
-    al_destroy_audio_stream(stream);
-    al_destroy_mixer(mixer);
-    al_destroy_voice(voice);
-    al_uninstall_audio();
+    if (font)
+        TTF_CloseFont(font);
 
-    al_shutdown_primitives_addon();
+    if (music_track)
+        MIX_DestroyTrack(music_track);
+
+    if (music_audio)
+        MIX_DestroyAudio(music_audio);
+
+    if (mixer)
+        MIX_DestroyMixer(mixer);
+
+    MIX_Quit();
+
+    if (renderer)
+        SDL_DestroyRenderer(renderer);
+
+    if (window)
+        SDL_DestroyWindow(window);
+
+    TTF_Quit();
+    SDL_Quit();
 }

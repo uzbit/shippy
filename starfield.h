@@ -2,15 +2,15 @@
 #ifndef _STARFIELD_H_
 #define _STARFIELD_H_
 
-#include <allegro5/allegro5.h>
 #include <vector>
+#include "sdl_compat.h"
 #include "geom.h"
 #include "object.h"
 
 using namespace std;
 
 class Star : public Object {
-    
+
     public:
     Star(float x, float y, int lifespan);
     ~Star(){};
@@ -18,9 +18,9 @@ class Star : public Object {
     void update(int w, int h);
     void draw(void);
 
-    ALLEGRO_COLOR color;
+    GameColor color;
     int lifespan, counter;
-   
+
 };
 
 class Starfield{

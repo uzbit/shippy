@@ -2,7 +2,6 @@
 #ifndef _SHIP_H_
 #define _SHIP_H_
 
-#include <allegro5/allegro5.h>
 #include "geom.h"
 #include "space.h"
 #include "object.h"
@@ -10,9 +9,9 @@
 
 enum ThrustDirection{
     NONE = 0,
-    LEFT = 1, 
-    RIGHT = 2, 
-    UP = 4, 
+    LEFT = 1,
+    RIGHT = 2,
+    UP = 4,
     DOWN = 8
 };
 
@@ -24,7 +23,7 @@ class Ship : public Object{
     ~Ship(){};
 
     void gravitate_bodies(Space &space);
-    void update(ALLEGRO_EVENT &e);
+    void update(void);
     void thrust_vertical(float scale);
     void thrust_horizontal(float scale);
     void draw(void);
@@ -32,7 +31,7 @@ class Ship : public Object{
     Point vel;
     Point accel;
     float fuel, fuel_start;
-    
+
     private:
     Point prev_pos;
     float offset;
@@ -42,10 +41,10 @@ class Ship : public Object{
     int thrust_dir;
     int flame_counter[4];
     float thick;
-    
-    void draw_flame(ALLEGRO_TRANSFORM *transform);
+
+    void draw_flame(float tx, float ty, float scale, float angle);
     void draw_flames(void);
-    
+
 
 };
 

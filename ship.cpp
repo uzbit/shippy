@@ -1,6 +1,5 @@
 
-#include <allegro5/allegro5.h>
-#include <allegro5/allegro_primitives.h>
+#include <SDL3/SDL.h>
 #include <iostream>
 #include <math.h>
 
@@ -9,6 +8,7 @@
 #include "body.h"
 #include "geom.h"
 #include "defines.h"
+#include "sdl_compat.h"
 
 using namespace std;
 
@@ -20,7 +20,7 @@ Ship::Ship(float x, float y, float fuel, float mass)
     prev_pos.y = y;
     thrustx = THRUST_X;
     thrusty = THRUST_Y;
-    offset = al_get_time();
+    offset = SDL_GetTicks() / 1000.0f;
     fuel_start = fuel;
     thrust_dir = NONE;
     memset(flame_counter, 0, sizeof(flame_counter));
@@ -62,7 +62,7 @@ void Ship::thrust_vertical(float scale){
     if (fuel < 0){
         fuel = 0;
         thrust_dir = NONE;
-    } 
+    }
     //cout << "ACCELY " << accel.y << endl;
 }
 
@@ -75,34 +75,17 @@ void Ship::gravitate_bodies(Space &space){
     for (int i = 0; i < space.body_count; i++){
         if (space.coordy == 0 && i == 0) continue; // already gravitate to Earth
         Body *b = space.bodies[i];
-        // if (b->filled){
-        //     sign = -1;
-        // } else {
-        //     sign = 1;
-        // }
         mass = (b->width * b->height) * b->density;
         dx = b->pos.x - pos.x;
         dy = b->pos.y - pos.y;
         dist = sqrt(dx*dx + dy*dy);
-        accel.x += sign * dx * mass * G / (dist*dist*dist); 
-        accel.y += sign * dy * mass * G / (dist*dist*dist); 
-        
+        accel.x += sign * dx * mass * G / (dist*dist*dist);
+        accel.y += sign * dy * mass * G / (dist*dist*dist);
+
     }
 }
 
-void Ship::update(ALLEGRO_EVENT &e){
-    
-    // prev_t = cur_t;
-    // prev_pos = pos;
-    // cur_t = e.timer.count * FRAME_RATE;
-    // pos.x += vel.x;
-    // pos.y += vel.y;
-    // float int_t = al_get_time() - offset;
-    // float scale = (int_t - FRAME_RATE - prev_t) / (cur_t - prev_t);
-    // printf("%f, %f, %f, %f \n", int_t, prev_t, cur_t, scale);
-    // pos.x = prev_pos.x + (pos.x - prev_pos.x) * scale;
-    // pos.y = prev_pos.y + (pos.y - prev_pos.y) * scale;
-    
+void Ship::update(void){
     pos.x += vel.x;
     pos.y += vel.y;
     vel.x += accel.x;
@@ -111,65 +94,89 @@ void Ship::update(ALLEGRO_EVENT &e){
     accel.y = 0;
 }
 
-void Ship::draw_flame(ALLEGRO_TRANSFORM *transform){
-    al_use_transform(transform);
-    al_draw_filled_triangle(-15, 0, 0, width2, 0, -width2, al_map_rgb(25, 200, 2));
-    al_identity_transform(transform);
-    al_use_transform(transform); 
+// Draw a flame triangle with manual rotation
+void Ship::draw_flame(float tx, float ty, float scale, float angle){
+    // Original flame triangle vertices (centered at origin, pointing left)
+    float p1x = -15, p1y = 0;
+    float p2x = 0, p2y = width2;
+    float p3x = 0, p3y = -width2;
+
+    // Apply scale
+    p1x *= scale; p1y *= scale;
+    p2x *= scale; p2y *= scale;
+    p3x *= scale; p3y *= scale;
+
+    // Apply rotation
+    float cosA = cos(angle);
+    float sinA = sin(angle);
+
+    float r1x = p1x * cosA - p1y * sinA;
+    float r1y = p1x * sinA + p1y * cosA;
+    float r2x = p2x * cosA - p2y * sinA;
+    float r2y = p2x * sinA + p2y * cosA;
+    float r3x = p3x * cosA - p3y * sinA;
+    float r3y = p3x * sinA + p3y * cosA;
+
+    // Translate to position
+    r1x += tx; r1y += ty;
+    r2x += tx; r2y += ty;
+    r3x += tx; r3y += ty;
+
+    GameColor flame_color = map_rgb(25, 200, 2);
+    draw_filled_triangle(r1x, r1y, r2x, r2y, r3x, r3y, flame_color);
 }
 
 void Ship::draw_flames(void){
     if (thrust_dir != NONE){
-        ALLEGRO_TRANSFORM transform;
         if (thrust_dir & LEFT){
-            al_build_transform(&transform, pos.x+width2+thick/2, pos.y, 0.75, 0.75, -3.14159);
-            draw_flame(&transform); 
+            draw_flame(pos.x+width2+thick/2, pos.y, 0.75, -M_PI);
             flame_counter[0]++;
         }
         if (thrust_dir & RIGHT){
-            al_build_transform(&transform, pos.x-width2-thick/2, pos.y, 0.75, 0.75, 0);
-            draw_flame(&transform);
-            flame_counter[1]++;    
-        }               
+            draw_flame(pos.x-width2-thick/2, pos.y, 0.75, 0);
+            flame_counter[1]++;
+        }
         if (thrust_dir & UP){
-            al_build_transform(&transform, pos.x, pos.y+height2+thick/2, 1, 1, -3.14159/2);
-            draw_flame(&transform);
-            flame_counter[2]++; 
+            draw_flame(pos.x, pos.y+height2+thick/2, 1.0, -M_PI/2);
+            flame_counter[2]++;
         }
         if (thrust_dir & DOWN){
-            al_build_transform(&transform, pos.x, pos.y-height2-thick/2, 1, 1, 3.14159/2);
-            draw_flame(&transform);
-            flame_counter[3]++; 
+            draw_flame(pos.x, pos.y-height2-thick/2, 1.0, M_PI/2);
+            flame_counter[3]++;
         }
     }
 }
 
 void Ship::draw(void){
     computeRect();
-    
+
     draw_flames();
-    
-    al_draw_rounded_rectangle(
+
+    // Draw ship body (rounded rectangle outline)
+    GameColor ship_color = map_rgb(2, 255, 255);
+    draw_rounded_rect(
         rect.tl.x, rect.tl.y, rect.br.x, rect.br.y,
-        1, 1, al_map_rgb(2, 255, 255), thick //al_map_rgb(255, 255, 2), thick
+        1, 1, ship_color, thick
     );
-    
+
+    // Draw fuel gauge
     if (fuel > 0){
         float fuel_ratio = (fuel_start - fuel)/fuel_start;
         float tly = (rect.br.y-thick/2) - ((rect.br.y-thick/2) - (rect.tl.y+thick/2))*(1-fuel_ratio);
-        al_draw_filled_rectangle(
+        GameColor fuel_color = map_rgb(255, 30, 2);
+        draw_filled_rect(
             rect.tl.x+thick/2, tly, rect.br.x-thick/2, rect.br.y-thick/2,
-            al_map_rgb(255, 30, 2)
+            fuel_color
         );
     }
-    
+
     if (flame_counter[0] >= 3)
-        thrust_dir &= !LEFT;
+        thrust_dir &= ~LEFT;
     if (flame_counter[1] >= 3)
-        thrust_dir &= !RIGHT;
+        thrust_dir &= ~RIGHT;
     if (flame_counter[2] >= 3)
-        thrust_dir &= !UP;
+        thrust_dir &= ~UP;
     if (flame_counter[3] >= 3)
-        thrust_dir &= !DOWN;
-    
+        thrust_dir &= ~DOWN;
+
 }
