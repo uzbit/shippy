@@ -54,6 +54,13 @@ class Ship : public Object{
     float thick;
     PhysicsWorld* physicsWorldPtr = nullptr;
 
+    // Ship geometry (computed once, used for drawing and physics)
+    float body_length;
+    float body_width;
+    float dome_radius;
+    float engine_radius;
+    float engine_spread;
+
     void draw_flame(float tx, float ty, float scale, float flameAngle);
     void draw_thrust_flame(void);
     void draw_brake_flame(void);

@@ -29,6 +29,13 @@ Ship::Ship(float x, float y, float fuel, float mass)
     isBraking = false;
     thrustFlameCounter = 0;
     brakeFlameCounter = 0;
+
+    // Compute ship geometry once
+    body_length = height2 * 1.6f;
+    body_width = width2 * 0.7f;
+    dome_radius = body_width * 1.1f;
+    engine_radius = body_width * 0.8f;
+    engine_spread = body_width * 1.6f;
 }
 
 void Ship::rotate(float scale){
@@ -122,11 +129,58 @@ void Ship::update(void){
 
 void Ship::initPhysics(PhysicsWorld& world) {
     physicsWorldPtr = &world;
-    physicsBody = world.createBody(this, PhysicsBodyType::DYNAMIC, 1.0f, 0.3f, BOUNCE_FACTOR);
+
+    // Create body without default shape - we'll add custom compound shape
+    b2BodyDef bodyDef = b2DefaultBodyDef();
+    bodyDef.type = b2_dynamicBody;
+    bodyDef.position = {world.toMeters(pos.x), world.toMeters(pos.y)};
+
+    physicsBody = b2CreateBody(world.getWorldId(), &bodyDef);
+    b2Body_SetUserData(physicsBody, this);
+
     if (b2Body_IsValid(physicsBody)) {
+        b2ShapeDef shapeDef = b2DefaultShapeDef();
+        shapeDef.density = 1.0f;
+        shapeDef.material.friction = 0.3f;
+        shapeDef.material.restitution = BOUNCE_FACTOR;
+        shapeDef.enableSensorEvents = true;
+        shapeDef.enableContactEvents = true;
+        shapeDef.userData = this;
+
+        // Main body (rectangle) - centered slightly back from object center
+        float body_center_offset = -body_length * 0.1f;  // Slightly back
+        b2Polygon bodyBox = b2MakeOffsetBox(
+            world.toMeters(body_width),
+            world.toMeters(body_length * 0.4f),
+            {world.toMeters(body_center_offset), 0},
+            b2MakeRot(0)
+        );
+        b2CreatePolygonShape(physicsBody, &shapeDef, &bodyBox);
+
+        // Dome (circle at front)
+        float dome_offset = body_length * 0.5f;
+        b2Circle domeCircle;
+        domeCircle.center = {world.toMeters(dome_offset), 0};
+        domeCircle.radius = world.toMeters(dome_radius);
+        b2CreateCircleShape(physicsBody, &shapeDef, &domeCircle);
+
+        // Left engine pod (circle)
+        float engine_back_offset = -body_length * 0.5f;
+        b2Circle leftEngine;
+        leftEngine.center = {world.toMeters(engine_back_offset), world.toMeters(-engine_spread)};
+        leftEngine.radius = world.toMeters(engine_radius);
+        b2CreateCircleShape(physicsBody, &shapeDef, &leftEngine);
+
+        // Right engine pod (circle)
+        b2Circle rightEngine;
+        rightEngine.center = {world.toMeters(engine_back_offset), world.toMeters(engine_spread)};
+        rightEngine.radius = world.toMeters(engine_radius);
+        b2CreateCircleShape(physicsBody, &shapeDef, &rightEngine);
+
         b2Body_SetLinearDamping(physicsBody, 0.0f);
-        b2Body_SetAngularDamping(physicsBody, 3.0f);  // Angular damping for smooth rotation feel
-        b2Body_SetFixedRotation(physicsBody, false);  // Enable rotation
+        b2Body_SetAngularDamping(physicsBody, 3.0f);
+        b2Body_SetFixedRotation(physicsBody, false);
+
         // Set initial rotation
         b2Vec2 position = b2Body_GetPosition(physicsBody);
         b2Rot rotation = b2MakeRot(angle);
@@ -218,74 +272,62 @@ void Ship::draw(void){
     float cosA = cos(angle);
     float sinA = sin(angle);
 
-    // Ship dimensions
-    float nose_len = height2;
-    float back_len = height2 * 0.7f;
-    float wing_spread = width2 * 1.8f;
-    float engine_size = width2 * 0.8f;
+    // Body positions
+    float body_front_x = pos.x + cosA * (body_length * 0.3f);
+    float body_front_y = pos.y + sinA * (body_length * 0.3f);
+    float body_back_x = pos.x - cosA * (body_length * 0.5f);
+    float body_back_y = pos.y - sinA * (body_length * 0.5f);
 
-    // Main body triangle vertices
-    // Nose point (front)
-    float nx = pos.x + cosA * nose_len;
-    float ny = pos.y + sinA * nose_len;
+    // Engine pod positions
+    float engine_left_x = body_back_x - sinA * engine_spread;
+    float engine_left_y = body_back_y + cosA * engine_spread;
+    float engine_right_x = body_back_x + sinA * engine_spread;
+    float engine_right_y = body_back_y - cosA * engine_spread;
 
-    // Back left point
-    float blx = pos.x - cosA * back_len - sinA * wing_spread;
-    float bly = pos.y - sinA * back_len + cosA * wing_spread;
-
-    // Back right point
-    float brx = pos.x - cosA * back_len + sinA * wing_spread;
-    float bry = pos.y - sinA * back_len - cosA * wing_spread;
-
-    // Engine positions (at the back corners)
-    float engine_offset = back_len + engine_size * 0.3f;
-    float engine_left_x = pos.x - cosA * engine_offset - sinA * (wing_spread * 0.6f);
-    float engine_left_y = pos.y - sinA * engine_offset + cosA * (wing_spread * 0.6f);
-    float engine_right_x = pos.x - cosA * engine_offset + sinA * (wing_spread * 0.6f);
-    float engine_right_y = pos.y - sinA * engine_offset - cosA * (wing_spread * 0.6f);
+    // Dome position
+    float dome_x = pos.x + cosA * (body_length * 0.5f);
+    float dome_y = pos.y + sinA * (body_length * 0.5f);
 
     // Draw engine flames first (behind everything)
     if (isThrusting) {
         GameColor flame_color = map_rgb(255, 150, 20);
         GameColor flame_core = map_rgb(255, 255, 100);
-
-        // Flame size varies for effect - made bigger
-        float flame_len = engine_size * (2.5f + 1.0f * ((thrustFlameCounter % 3) / 2.0f));
+        float flame_len = engine_radius * (3.0f + 1.5f * ((thrustFlameCounter % 4) / 3.0f));
 
         // Left engine flame
         float fl_tip_x = engine_left_x - cosA * flame_len;
         float fl_tip_y = engine_left_y - sinA * flame_len;
-        float fl_l_x = engine_left_x - sinA * (engine_size * 0.6f);
-        float fl_l_y = engine_left_y + cosA * (engine_size * 0.6f);
-        float fl_r_x = engine_left_x + sinA * (engine_size * 0.6f);
-        float fl_r_y = engine_left_y - cosA * (engine_size * 0.6f);
+        float fl_l_x = engine_left_x - sinA * (engine_radius * 0.8f);
+        float fl_l_y = engine_left_y + cosA * (engine_radius * 0.8f);
+        float fl_r_x = engine_left_x + sinA * (engine_radius * 0.8f);
+        float fl_r_y = engine_left_y - cosA * (engine_radius * 0.8f);
         draw_filled_triangle(fl_tip_x, fl_tip_y, fl_l_x, fl_l_y, fl_r_x, fl_r_y, flame_color);
 
-        // Left engine flame core
+        // Left flame core
         float flc_tip_x = engine_left_x - cosA * (flame_len * 0.7f);
         float flc_tip_y = engine_left_y - sinA * (flame_len * 0.7f);
-        float flc_l_x = engine_left_x - sinA * (engine_size * 0.3f);
-        float flc_l_y = engine_left_y + cosA * (engine_size * 0.3f);
-        float flc_r_x = engine_left_x + sinA * (engine_size * 0.3f);
-        float flc_r_y = engine_left_y - cosA * (engine_size * 0.3f);
+        float flc_l_x = engine_left_x - sinA * (engine_radius * 0.4f);
+        float flc_l_y = engine_left_y + cosA * (engine_radius * 0.4f);
+        float flc_r_x = engine_left_x + sinA * (engine_radius * 0.4f);
+        float flc_r_y = engine_left_y - cosA * (engine_radius * 0.4f);
         draw_filled_triangle(flc_tip_x, flc_tip_y, flc_l_x, flc_l_y, flc_r_x, flc_r_y, flame_core);
 
         // Right engine flame
         float fr_tip_x = engine_right_x - cosA * flame_len;
         float fr_tip_y = engine_right_y - sinA * flame_len;
-        float fr_l_x = engine_right_x - sinA * (engine_size * 0.6f);
-        float fr_l_y = engine_right_y + cosA * (engine_size * 0.6f);
-        float fr_r_x = engine_right_x + sinA * (engine_size * 0.6f);
-        float fr_r_y = engine_right_y - cosA * (engine_size * 0.6f);
+        float fr_l_x = engine_right_x - sinA * (engine_radius * 0.8f);
+        float fr_l_y = engine_right_y + cosA * (engine_radius * 0.8f);
+        float fr_r_x = engine_right_x + sinA * (engine_radius * 0.8f);
+        float fr_r_y = engine_right_y - cosA * (engine_radius * 0.8f);
         draw_filled_triangle(fr_tip_x, fr_tip_y, fr_l_x, fr_l_y, fr_r_x, fr_r_y, flame_color);
 
-        // Right engine flame core
+        // Right flame core
         float frc_tip_x = engine_right_x - cosA * (flame_len * 0.7f);
         float frc_tip_y = engine_right_y - sinA * (flame_len * 0.7f);
-        float frc_l_x = engine_right_x - sinA * (engine_size * 0.3f);
-        float frc_l_y = engine_right_y + cosA * (engine_size * 0.3f);
-        float frc_r_x = engine_right_x + sinA * (engine_size * 0.3f);
-        float frc_r_y = engine_right_y - cosA * (engine_size * 0.3f);
+        float frc_l_x = engine_right_x - sinA * (engine_radius * 0.4f);
+        float frc_l_y = engine_right_y + cosA * (engine_radius * 0.4f);
+        float frc_r_x = engine_right_x + sinA * (engine_radius * 0.4f);
+        float frc_r_y = engine_right_y - cosA * (engine_radius * 0.4f);
         draw_filled_triangle(frc_tip_x, frc_tip_y, frc_l_x, frc_l_y, frc_r_x, frc_r_y, flame_core);
 
         thrustFlameCounter++;
@@ -294,18 +336,16 @@ void Ship::draw(void){
         }
     }
 
-    // Draw brake flames (front of ship)
+    // Draw brake flames
     if (isBraking) {
         GameColor brake_flame = map_rgb(100, 200, 255);
-        float brake_len = engine_size * 0.8f;
-
-        // Brake flame at nose
-        float bf_tip_x = nx + cosA * brake_len;
-        float bf_tip_y = ny + sinA * brake_len;
-        float bf_l_x = nx - sinA * (engine_size * 0.3f);
-        float bf_l_y = ny + cosA * (engine_size * 0.3f);
-        float bf_r_x = nx + sinA * (engine_size * 0.3f);
-        float bf_r_y = ny - cosA * (engine_size * 0.3f);
+        float brake_len = dome_radius * 1.2f;
+        float bf_tip_x = dome_x + cosA * brake_len;
+        float bf_tip_y = dome_y + sinA * brake_len;
+        float bf_l_x = dome_x - sinA * (dome_radius * 0.5f);
+        float bf_l_y = dome_y + cosA * (dome_radius * 0.5f);
+        float bf_r_x = dome_x + sinA * (dome_radius * 0.5f);
+        float bf_r_y = dome_y - cosA * (dome_radius * 0.5f);
         draw_filled_triangle(bf_tip_x, bf_tip_y, bf_l_x, bf_l_y, bf_r_x, bf_r_y, brake_flame);
 
         brakeFlameCounter++;
@@ -314,68 +354,75 @@ void Ship::draw(void){
         }
     }
 
-    // Draw engines (small triangles at back)
-    GameColor engine_color = map_rgb(150, 150, 180);
+    // Draw engine pods (semi-spheres)
+    GameColor engine_color = map_rgb(80, 80, 100);
+    GameColor engine_highlight = map_rgb(120, 120, 150);
 
-    // Left engine triangle
-    float el_nose_x = engine_left_x + cosA * (engine_size * 0.3f);
-    float el_nose_y = engine_left_y + sinA * (engine_size * 0.3f);
-    float el_l_x = engine_left_x - cosA * (engine_size * 0.5f) - sinA * (engine_size * 0.5f);
-    float el_l_y = engine_left_y - sinA * (engine_size * 0.5f) + cosA * (engine_size * 0.5f);
-    float el_r_x = engine_left_x - cosA * (engine_size * 0.5f) + sinA * (engine_size * 0.5f);
-    float el_r_y = engine_left_y - sinA * (engine_size * 0.5f) - cosA * (engine_size * 0.5f);
-    draw_filled_triangle(el_nose_x, el_nose_y, el_l_x, el_l_y, el_r_x, el_r_y, engine_color);
+    // Left engine pod
+    draw_filled_ellipse(engine_left_x, engine_left_y, engine_radius, engine_radius, engine_color);
+    draw_filled_ellipse(engine_left_x + cosA * (engine_radius * 0.2f),
+                        engine_left_y + sinA * (engine_radius * 0.2f),
+                        engine_radius * 0.5f, engine_radius * 0.5f, engine_highlight);
 
-    // Right engine triangle
-    float er_nose_x = engine_right_x + cosA * (engine_size * 0.3f);
-    float er_nose_y = engine_right_y + sinA * (engine_size * 0.3f);
-    float er_l_x = engine_right_x - cosA * (engine_size * 0.5f) - sinA * (engine_size * 0.5f);
-    float er_l_y = engine_right_y - sinA * (engine_size * 0.5f) + cosA * (engine_size * 0.5f);
-    float er_r_x = engine_right_x - cosA * (engine_size * 0.5f) + sinA * (engine_size * 0.5f);
-    float er_r_y = engine_right_y - sinA * (engine_size * 0.5f) - cosA * (engine_size * 0.5f);
-    draw_filled_triangle(er_nose_x, er_nose_y, er_l_x, er_l_y, er_r_x, er_r_y, engine_color);
+    // Right engine pod
+    draw_filled_ellipse(engine_right_x, engine_right_y, engine_radius, engine_radius, engine_color);
+    draw_filled_ellipse(engine_right_x + cosA * (engine_radius * 0.2f),
+                        engine_right_y + sinA * (engine_radius * 0.2f),
+                        engine_radius * 0.5f, engine_radius * 0.5f, engine_highlight);
 
-    // Draw main body triangle (filled)
-    GameColor body_color = map_rgb(40, 80, 120);
-    draw_filled_triangle(nx, ny, blx, bly, brx, bry, body_color);
+    // Draw cylinder body (as a quad)
+    GameColor body_color = map_rgb(60, 100, 140);
+    GameColor body_outline = map_rgb(2, 255, 255);
 
-    // Draw main body outline
-    GameColor ship_color = map_rgb(2, 255, 255);
-    draw_line(nx, ny, blx, bly, ship_color, thick);
-    draw_line(blx, bly, brx, bry, ship_color, thick);
-    draw_line(brx, bry, nx, ny, ship_color, thick);
+    float bl_x = body_back_x - sinA * body_width;
+    float bl_y = body_back_y + cosA * body_width;
+    float br_x = body_back_x + sinA * body_width;
+    float br_y = body_back_y - cosA * body_width;
+    float fl_x = body_front_x - sinA * body_width;
+    float fl_y = body_front_y + cosA * body_width;
+    float fr_x = body_front_x + sinA * body_width;
+    float fr_y = body_front_y - cosA * body_width;
 
-    // Draw cockpit (small triangle at front)
-    GameColor cockpit_color = map_rgb(100, 200, 255);
-    float cockpit_size = height2 * 0.3f;
-    float cp_nose_x = pos.x + cosA * (nose_len * 0.7f);
-    float cp_nose_y = pos.y + sinA * (nose_len * 0.7f);
-    float cp_l_x = pos.x + cosA * (nose_len * 0.2f) - sinA * (cockpit_size * 0.4f);
-    float cp_l_y = pos.y + sinA * (nose_len * 0.2f) + cosA * (cockpit_size * 0.4f);
-    float cp_r_x = pos.x + cosA * (nose_len * 0.2f) + sinA * (cockpit_size * 0.4f);
-    float cp_r_y = pos.y + sinA * (nose_len * 0.2f) - cosA * (cockpit_size * 0.4f);
-    draw_filled_triangle(cp_nose_x, cp_nose_y, cp_l_x, cp_l_y, cp_r_x, cp_r_y, cockpit_color);
+    draw_filled_triangle(bl_x, bl_y, br_x, br_y, fl_x, fl_y, body_color);
+    draw_filled_triangle(br_x, br_y, fr_x, fr_y, fl_x, fl_y, body_color);
 
-    // Draw fuel gauge as a bar inside the ship
+    // Body outline
+    draw_line(bl_x, bl_y, fl_x, fl_y, body_outline, thick);
+    draw_line(br_x, br_y, fr_x, fr_y, body_outline, thick);
+    draw_line(bl_x, bl_y, br_x, br_y, body_outline, thick);
+
+    // Draw dome cockpit
+    GameColor dome_color = map_rgb(100, 180, 220);
+    GameColor dome_highlight = map_rgb(180, 230, 255);
+
+    draw_filled_ellipse(dome_x, dome_y, dome_radius, dome_radius, dome_color);
+    draw_filled_ellipse(dome_x + cosA * (dome_radius * 0.25f) - sinA * (dome_radius * 0.15f),
+                        dome_y + sinA * (dome_radius * 0.25f) + cosA * (dome_radius * 0.15f),
+                        dome_radius * 0.35f, dome_radius * 0.35f, dome_highlight);
+
+    // Draw struts connecting body to engines
+    GameColor strut_color = map_rgb(100, 100, 120);
+    draw_line(bl_x, bl_y, engine_left_x, engine_left_y, strut_color, thick * 0.8f);
+    draw_line(br_x, br_y, engine_right_x, engine_right_y, strut_color, thick * 0.8f);
+
+    // Draw fuel gauge on body
     if (fuel > 0){
         float fuel_ratio = fuel / fuel_start;
-        // Color changes from green to yellow to red as fuel depletes
         GameColor fuel_color;
         if (fuel_ratio > 0.5f) {
-            fuel_color = map_rgb(50, 255, 50);  // Green
+            fuel_color = map_rgb(50, 255, 50);
         } else if (fuel_ratio > 0.25f) {
-            fuel_color = map_rgb(255, 255, 50);  // Yellow
+            fuel_color = map_rgb(255, 255, 50);
         } else {
-            fuel_color = map_rgb(255, 50, 50);  // Red
+            fuel_color = map_rgb(255, 50, 50);
         }
 
-        // Draw fuel as a thicker line from back to front
-        float gauge_len = height2 * 0.6f * fuel_ratio;
-        float gauge_start_x = pos.x - cosA * (height2 * 0.35f);
-        float gauge_start_y = pos.y - sinA * (height2 * 0.35f);
+        float gauge_len = body_length * 0.5f * fuel_ratio;
+        float gauge_start_x = pos.x - cosA * (body_length * 0.3f);
+        float gauge_start_y = pos.y - sinA * (body_length * 0.3f);
         float gauge_end_x = gauge_start_x + cosA * gauge_len;
         float gauge_end_y = gauge_start_y + sinA * gauge_len;
 
-        draw_line(gauge_start_x, gauge_start_y, gauge_end_x, gauge_end_y, fuel_color, thick * 1.2f);
+        draw_line(gauge_start_x, gauge_start_y, gauge_end_x, gauge_end_y, fuel_color, thick * 1.5f);
     }
 }
