@@ -14,13 +14,13 @@
 using namespace std;
 
 Ship::Ship(float x, float y, float fuel, float mass)
-:Object(x, y, 10, 40), fuel(fuel), mass(mass), thick(4){
+:Object(x, y, 30, 80), fuel(fuel), mass(mass), thick(5){
     pos.x = x;
     pos.y = y;
     prev_pos.x = x;
     prev_pos.y = y;
     thrustPower = THRUST_Y;
-    rotatePower = 0.005f;  // Angular acceleration for rotation
+    rotatePower = 0.05f;  // Angular acceleration for rotation
     offset = SDL_GetTicks() / 1000.0f;
     fuel_start = fuel;
     angle = -M_PI / 2;  // Start pointing up
@@ -215,26 +215,21 @@ void Ship::draw_brake_flame(void){
 void Ship::draw(void){
     computeRect();
 
-    // Draw thrust flames
-    draw_thrust_flame();
-    draw_brake_flame();
-
-    // Draw rotated ship body as a triangle pointing in facing direction
-    GameColor ship_color = map_rgb(2, 255, 255);
-
-    // Ship is a triangle: nose at front, two points at back
     float cosA = cos(angle);
     float sinA = sin(angle);
 
-    // Triangle vertices (relative to center, pointing right when angle=0)
-    // Nose point (front)
+    // Ship dimensions
     float nose_len = height2;
+    float back_len = height2 * 0.7f;
+    float wing_spread = width2 * 1.8f;
+    float engine_size = width2 * 0.8f;
+
+    // Main body triangle vertices
+    // Nose point (front)
     float nx = pos.x + cosA * nose_len;
     float ny = pos.y + sinA * nose_len;
 
     // Back left point
-    float back_len = height2;
-    float wing_spread = width2 * 1.5f;
     float blx = pos.x - cosA * back_len - sinA * wing_spread;
     float bly = pos.y - sinA * back_len + cosA * wing_spread;
 
@@ -242,23 +237,145 @@ void Ship::draw(void){
     float brx = pos.x - cosA * back_len + sinA * wing_spread;
     float bry = pos.y - sinA * back_len - cosA * wing_spread;
 
-    // Draw ship outline as triangle
+    // Engine positions (at the back corners)
+    float engine_offset = back_len + engine_size * 0.3f;
+    float engine_left_x = pos.x - cosA * engine_offset - sinA * (wing_spread * 0.6f);
+    float engine_left_y = pos.y - sinA * engine_offset + cosA * (wing_spread * 0.6f);
+    float engine_right_x = pos.x - cosA * engine_offset + sinA * (wing_spread * 0.6f);
+    float engine_right_y = pos.y - sinA * engine_offset - cosA * (wing_spread * 0.6f);
+
+    // Draw engine flames first (behind everything)
+    if (isThrusting) {
+        GameColor flame_color = map_rgb(255, 150, 20);
+        GameColor flame_core = map_rgb(255, 255, 100);
+
+        // Flame size varies for effect - made bigger
+        float flame_len = engine_size * (2.5f + 1.0f * ((thrustFlameCounter % 3) / 2.0f));
+
+        // Left engine flame
+        float fl_tip_x = engine_left_x - cosA * flame_len;
+        float fl_tip_y = engine_left_y - sinA * flame_len;
+        float fl_l_x = engine_left_x - sinA * (engine_size * 0.6f);
+        float fl_l_y = engine_left_y + cosA * (engine_size * 0.6f);
+        float fl_r_x = engine_left_x + sinA * (engine_size * 0.6f);
+        float fl_r_y = engine_left_y - cosA * (engine_size * 0.6f);
+        draw_filled_triangle(fl_tip_x, fl_tip_y, fl_l_x, fl_l_y, fl_r_x, fl_r_y, flame_color);
+
+        // Left engine flame core
+        float flc_tip_x = engine_left_x - cosA * (flame_len * 0.7f);
+        float flc_tip_y = engine_left_y - sinA * (flame_len * 0.7f);
+        float flc_l_x = engine_left_x - sinA * (engine_size * 0.3f);
+        float flc_l_y = engine_left_y + cosA * (engine_size * 0.3f);
+        float flc_r_x = engine_left_x + sinA * (engine_size * 0.3f);
+        float flc_r_y = engine_left_y - cosA * (engine_size * 0.3f);
+        draw_filled_triangle(flc_tip_x, flc_tip_y, flc_l_x, flc_l_y, flc_r_x, flc_r_y, flame_core);
+
+        // Right engine flame
+        float fr_tip_x = engine_right_x - cosA * flame_len;
+        float fr_tip_y = engine_right_y - sinA * flame_len;
+        float fr_l_x = engine_right_x - sinA * (engine_size * 0.6f);
+        float fr_l_y = engine_right_y + cosA * (engine_size * 0.6f);
+        float fr_r_x = engine_right_x + sinA * (engine_size * 0.6f);
+        float fr_r_y = engine_right_y - cosA * (engine_size * 0.6f);
+        draw_filled_triangle(fr_tip_x, fr_tip_y, fr_l_x, fr_l_y, fr_r_x, fr_r_y, flame_color);
+
+        // Right engine flame core
+        float frc_tip_x = engine_right_x - cosA * (flame_len * 0.7f);
+        float frc_tip_y = engine_right_y - sinA * (flame_len * 0.7f);
+        float frc_l_x = engine_right_x - sinA * (engine_size * 0.3f);
+        float frc_l_y = engine_right_y + cosA * (engine_size * 0.3f);
+        float frc_r_x = engine_right_x + sinA * (engine_size * 0.3f);
+        float frc_r_y = engine_right_y - cosA * (engine_size * 0.3f);
+        draw_filled_triangle(frc_tip_x, frc_tip_y, frc_l_x, frc_l_y, frc_r_x, frc_r_y, flame_core);
+
+        thrustFlameCounter++;
+        if (thrustFlameCounter >= 6) {
+            isThrusting = false;
+        }
+    }
+
+    // Draw brake flames (front of ship)
+    if (isBraking) {
+        GameColor brake_flame = map_rgb(100, 200, 255);
+        float brake_len = engine_size * 0.8f;
+
+        // Brake flame at nose
+        float bf_tip_x = nx + cosA * brake_len;
+        float bf_tip_y = ny + sinA * brake_len;
+        float bf_l_x = nx - sinA * (engine_size * 0.3f);
+        float bf_l_y = ny + cosA * (engine_size * 0.3f);
+        float bf_r_x = nx + sinA * (engine_size * 0.3f);
+        float bf_r_y = ny - cosA * (engine_size * 0.3f);
+        draw_filled_triangle(bf_tip_x, bf_tip_y, bf_l_x, bf_l_y, bf_r_x, bf_r_y, brake_flame);
+
+        brakeFlameCounter++;
+        if (brakeFlameCounter >= 4) {
+            isBraking = false;
+        }
+    }
+
+    // Draw engines (small triangles at back)
+    GameColor engine_color = map_rgb(150, 150, 180);
+
+    // Left engine triangle
+    float el_nose_x = engine_left_x + cosA * (engine_size * 0.3f);
+    float el_nose_y = engine_left_y + sinA * (engine_size * 0.3f);
+    float el_l_x = engine_left_x - cosA * (engine_size * 0.5f) - sinA * (engine_size * 0.5f);
+    float el_l_y = engine_left_y - sinA * (engine_size * 0.5f) + cosA * (engine_size * 0.5f);
+    float el_r_x = engine_left_x - cosA * (engine_size * 0.5f) + sinA * (engine_size * 0.5f);
+    float el_r_y = engine_left_y - sinA * (engine_size * 0.5f) - cosA * (engine_size * 0.5f);
+    draw_filled_triangle(el_nose_x, el_nose_y, el_l_x, el_l_y, el_r_x, el_r_y, engine_color);
+
+    // Right engine triangle
+    float er_nose_x = engine_right_x + cosA * (engine_size * 0.3f);
+    float er_nose_y = engine_right_y + sinA * (engine_size * 0.3f);
+    float er_l_x = engine_right_x - cosA * (engine_size * 0.5f) - sinA * (engine_size * 0.5f);
+    float er_l_y = engine_right_y - sinA * (engine_size * 0.5f) + cosA * (engine_size * 0.5f);
+    float er_r_x = engine_right_x - cosA * (engine_size * 0.5f) + sinA * (engine_size * 0.5f);
+    float er_r_y = engine_right_y - sinA * (engine_size * 0.5f) - cosA * (engine_size * 0.5f);
+    draw_filled_triangle(er_nose_x, er_nose_y, er_l_x, er_l_y, er_r_x, er_r_y, engine_color);
+
+    // Draw main body triangle (filled)
+    GameColor body_color = map_rgb(40, 80, 120);
+    draw_filled_triangle(nx, ny, blx, bly, brx, bry, body_color);
+
+    // Draw main body outline
+    GameColor ship_color = map_rgb(2, 255, 255);
     draw_line(nx, ny, blx, bly, ship_color, thick);
     draw_line(blx, bly, brx, bry, ship_color, thick);
     draw_line(brx, bry, nx, ny, ship_color, thick);
 
-    // Draw fuel gauge as a line inside the ship
+    // Draw cockpit (small triangle at front)
+    GameColor cockpit_color = map_rgb(100, 200, 255);
+    float cockpit_size = height2 * 0.3f;
+    float cp_nose_x = pos.x + cosA * (nose_len * 0.7f);
+    float cp_nose_y = pos.y + sinA * (nose_len * 0.7f);
+    float cp_l_x = pos.x + cosA * (nose_len * 0.2f) - sinA * (cockpit_size * 0.4f);
+    float cp_l_y = pos.y + sinA * (nose_len * 0.2f) + cosA * (cockpit_size * 0.4f);
+    float cp_r_x = pos.x + cosA * (nose_len * 0.2f) + sinA * (cockpit_size * 0.4f);
+    float cp_r_y = pos.y + sinA * (nose_len * 0.2f) - cosA * (cockpit_size * 0.4f);
+    draw_filled_triangle(cp_nose_x, cp_nose_y, cp_l_x, cp_l_y, cp_r_x, cp_r_y, cockpit_color);
+
+    // Draw fuel gauge as a bar inside the ship
     if (fuel > 0){
         float fuel_ratio = fuel / fuel_start;
-        GameColor fuel_color = map_rgb(255, 30, 2);
+        // Color changes from green to yellow to red as fuel depletes
+        GameColor fuel_color;
+        if (fuel_ratio > 0.5f) {
+            fuel_color = map_rgb(50, 255, 50);  // Green
+        } else if (fuel_ratio > 0.25f) {
+            fuel_color = map_rgb(255, 255, 50);  // Yellow
+        } else {
+            fuel_color = map_rgb(255, 50, 50);  // Red
+        }
 
-        // Draw fuel as a line from back to front, length proportional to fuel
-        float gauge_len = height2 * 0.8f * fuel_ratio;
-        float gauge_start_x = pos.x - cosA * (height2 * 0.4f);
-        float gauge_start_y = pos.y - sinA * (height2 * 0.4f);
+        // Draw fuel as a thicker line from back to front
+        float gauge_len = height2 * 0.6f * fuel_ratio;
+        float gauge_start_x = pos.x - cosA * (height2 * 0.35f);
+        float gauge_start_y = pos.y - sinA * (height2 * 0.35f);
         float gauge_end_x = gauge_start_x + cosA * gauge_len;
         float gauge_end_y = gauge_start_y + sinA * gauge_len;
 
-        draw_line(gauge_start_x, gauge_start_y, gauge_end_x, gauge_end_y, fuel_color, thick * 0.5f);
+        draw_line(gauge_start_x, gauge_start_y, gauge_end_x, gauge_end_y, fuel_color, thick * 1.2f);
     }
 }

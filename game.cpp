@@ -183,8 +183,11 @@ void Game::update_graphics(void){
     starfield.draw();
     spaces[space_index].draw();
     ship->draw();
-    for (auto& proj : projectiles)
-        proj.draw();
+    // Only draw projectiles that are in the current space
+    for (auto& proj : projectiles) {
+        if (proj.coordx == coordx && proj.coordy == coordy)
+            proj.draw();
+    }
     for (auto& duder : spaces[space_index].duders)
         draw_duder_bias(&duder);
     draw_info();
@@ -200,9 +203,19 @@ void Game::update_game(void){
         }
         add_space(coordx, coordy);
         enableSpacePhysics(spaces[space_index]);
+        // Clear trail buffer when entering new space
+        SDL_SetRenderTarget(renderer, trailBuffer);
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+        SDL_RenderClear(renderer);
+        SDL_SetRenderTarget(renderer, NULL);
     } else if (space_index != prev_space_index && prev_space_index >= 0) {
         disableSpacePhysics(spaces[prev_space_index]);
         enableSpacePhysics(spaces[space_index]);
+        // Clear trail buffer when changing spaces
+        SDL_SetRenderTarget(renderer, trailBuffer);
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+        SDL_RenderClear(renderer);
+        SDL_SetRenderTarget(renderer, NULL);
     }
 
     // Update trippy/theme state based on current space's traits
@@ -348,11 +361,15 @@ void Game::fireProjectile(void) {
     float noseX = ship->pos.x + cos(ship->angle) * ship->height2;
     float noseY = ship->pos.y + sin(ship->angle) * ship->height2;
 
-    // Projectile speed relative to ship
-    float projectileSpeed = 50.0f;
+    // Projectile speed (independent base speed)
+    float projectileSpeed = 80.0f;
 
     projectiles.emplace_back(noseX, noseY, ship->angle, projectileSpeed);
     Projectile& proj = projectiles.back();
+
+    // Set projectile's space coordinates to current space
+    proj.coordx = coordx;
+    proj.coordy = coordy;
 
     // Add ship's velocity so projectiles inherit momentum
     proj.vel.x += ship->vel.x;
@@ -365,20 +382,41 @@ void Game::updateProjectiles(void) {
     // Update all projectiles
     for (auto& proj : projectiles) {
         proj.update();
+
+        // Wrap projectiles around screen edges and update space coordinates
+        if (proj.pos.x < 0) {
+            proj.pos.x = window_width + proj.pos.x;
+            proj.coordx -= 1;
+            if (b2Body_IsValid(proj.physicsBody)) {
+                physicsWorld.setTransform(proj.physicsBody, proj.pos.x, proj.pos.y, proj.angle);
+            }
+        }
+        if (proj.pos.x > window_width) {
+            proj.pos.x = proj.pos.x - window_width;
+            proj.coordx += 1;
+            if (b2Body_IsValid(proj.physicsBody)) {
+                physicsWorld.setTransform(proj.physicsBody, proj.pos.x, proj.pos.y, proj.angle);
+            }
+        }
+        if (proj.pos.y < 0) {
+            proj.pos.y = window_height + proj.pos.y;
+            proj.coordy += 1;
+            if (b2Body_IsValid(proj.physicsBody)) {
+                physicsWorld.setTransform(proj.physicsBody, proj.pos.x, proj.pos.y, proj.angle);
+            }
+        }
+        if (proj.pos.y > window_height) {
+            proj.pos.y = proj.pos.y - window_height;
+            proj.coordy -= 1;
+            if (b2Body_IsValid(proj.physicsBody)) {
+                physicsWorld.setTransform(proj.physicsBody, proj.pos.x, proj.pos.y, proj.angle);
+            }
+        }
     }
 
-    // Remove expired projectiles and those that went off-screen
+    // Remove only expired projectiles
     for (auto it = projectiles.begin(); it != projectiles.end(); ) {
-        bool shouldRemove = it->isExpired();
-
-        // Check if off-screen (with some margin)
-        float margin = 100.0f;
-        if (it->pos.x < -margin || it->pos.x > window_width + margin ||
-            it->pos.y < -margin || it->pos.y > window_height + margin) {
-            shouldRemove = true;
-        }
-
-        if (shouldRemove) {
+        if (it->isExpired()) {
             it->destroyPhysics(physicsWorld);
             it = projectiles.erase(it);
         } else {
@@ -659,7 +697,9 @@ void Game::processCollisions(void) {
         }
 
         // Projectile-asteroid collision: destroy both, spawn children
-        if (projectileObj && asteroidObj && !asteroidObj->isDestroyed() && !projectileObj->isExpired()) {
+        // Only process if projectile is in current space
+        if (projectileObj && asteroidObj && !asteroidObj->isDestroyed() && !projectileObj->isExpired()
+            && projectileObj->coordx == coordx && projectileObj->coordy == coordy) {
             // Check if not already marked for destruction
             bool asteroidMarked = false;
             for (Asteroid* a : asteroidsToDestroy) {
@@ -682,7 +722,9 @@ void Game::processCollisions(void) {
         }
 
         // Projectile-duder collision: kill duder and destroy projectile
-        if (projectileObj && duderObj && !duderObj->is_killed && !projectileObj->isExpired()) {
+        // Only process if projectile is in current space
+        if (projectileObj && duderObj && !duderObj->is_killed && !projectileObj->isExpired()
+            && projectileObj->coordx == coordx && projectileObj->coordy == coordy) {
             bool projectileMarked = false;
             for (Projectile* p : projectilesToDestroy) {
                 if (p == projectileObj) { projectileMarked = true; break; }

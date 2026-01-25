@@ -7,12 +7,14 @@
 
 Projectile::Projectile()
     : Object(0, 0, 6, 6), angle(0), lifetime(30.0f), bounceCount(0),
-      maxBounces(5), expired(false), speed(0), color(map_rgb(255, 255, 0)) {
+      maxBounces(5), expired(false), coordx(0), coordy(0), speed(0),
+      color(map_rgb(255, 255, 0)) {
 }
 
 Projectile::Projectile(float x, float y, float angle, float speed)
     : Object(x, y, 6, 6), angle(angle), lifetime(30.0f), bounceCount(0),
-      maxBounces(5), expired(false), speed(speed), color(map_rgb(255, 255, 0)) {
+      maxBounces(5), expired(false), coordx(0), coordy(0), speed(speed),
+      color(map_rgb(255, 255, 0)) {
     vel.x = cos(angle) * speed;
     vel.y = sin(angle) * speed;
 }

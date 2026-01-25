@@ -28,6 +28,7 @@ public:
     int bounceCount;     // Number of bounces
     int maxBounces;      // Maximum bounces before expiration
     bool expired;
+    int coordx, coordy;  // Space coordinates the projectile is in
 
 private:
     float speed;
