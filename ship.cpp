@@ -19,59 +19,72 @@ Ship::Ship(float x, float y, float fuel, float mass)
     pos.y = y;
     prev_pos.x = x;
     prev_pos.y = y;
-    thrustx = THRUST_X;
-    thrusty = THRUST_Y;
+    thrustPower = THRUST_Y;
+    rotatePower = 0.005f;  // Angular acceleration for rotation
     offset = SDL_GetTicks() / 1000.0f;
     fuel_start = fuel;
-    thrust_dir = NONE;
-    memset(flame_counter, 0, sizeof(flame_counter));
+    angle = -M_PI / 2;  // Start pointing up
+    angularVelocity = 0;
+    isThrusting = false;
+    isBraking = false;
+    thrustFlameCounter = 0;
+    brakeFlameCounter = 0;
 }
 
-void Ship::thrust_horizontal(float scale){
-    if (fuel > 0){
-        float force = scale * thrustx / (mass + fuel * FUEL_MASS);
-        if (physicsWorldPtr && b2Body_IsValid(physicsBody)) {
-            physicsWorldPtr->applyForceToCenter(physicsBody, force * PIXELS_PER_METER * 60.0f, 0);
-        } else {
-            accel.x += force;
-        }
-        fuel -= HORIZONTAL_FUEL_CONSUMPTION;
-        if (scale < 0){
-            thrust_dir |= LEFT;
-            flame_counter[0] = 0;
-        }
-        if (scale > 0){
-            thrust_dir |= RIGHT;
-            flame_counter[1] = 0;
-        }
-    }
-    if (fuel < 0){
-        fuel = 0;
-        thrust_dir = NONE;
+void Ship::rotate(float scale){
+    // Apply torque for rotation (no fuel cost for rotation)
+    if (physicsWorldPtr && b2Body_IsValid(physicsBody)) {
+        float torque = scale * rotatePower * 60.0f;
+        b2Body_ApplyTorque(physicsBody, torque, true);
+    } else {
+        angularVelocity += scale * rotatePower * 0.01f;
     }
 }
 
-void Ship::thrust_vertical(float scale){
+void Ship::thrust(float scale){
     if (fuel > 0){
-        float force = scale * thrusty / (mass + fuel * FUEL_MASS);
+        float force = scale * thrustPower / (mass + fuel * FUEL_MASS);
+        // Thrust in the direction the ship is facing
+        float fx = cos(angle) * force;
+        float fy = sin(angle) * force;
         if (physicsWorldPtr && b2Body_IsValid(physicsBody)) {
-            physicsWorldPtr->applyForceToCenter(physicsBody, 0, force * PIXELS_PER_METER * 60.0f);
+            physicsWorldPtr->applyForceToCenter(physicsBody, fx * PIXELS_PER_METER * 60.0f, fy * PIXELS_PER_METER * 60.0f);
         } else {
-            accel.y += force;
+            accel.x += fx;
+            accel.y += fy;
         }
         fuel -= VERTICAL_FUEL_CONSUMPTION;
-        if (scale < 0){
-            thrust_dir |= UP;
-            flame_counter[2] = 0;
-        }
-        if (scale > 0){
-            thrust_dir |= DOWN;
-            flame_counter[3] = 0;
+        isThrusting = true;
+        thrustFlameCounter = 0;
+    }
+    if (fuel < 0){
+        fuel = 0;
+        isThrusting = false;
+    }
+}
+
+void Ship::brake(float scale){
+    if (fuel > 0){
+        // Brake by applying force opposite to current velocity
+        float speed = sqrt(vel.x * vel.x + vel.y * vel.y);
+        if (speed > 0.1f) {
+            float brakeForce = scale * thrustPower * 0.5f / (mass + fuel * FUEL_MASS);
+            float fx = -(vel.x / speed) * brakeForce;
+            float fy = -(vel.y / speed) * brakeForce;
+            if (physicsWorldPtr && b2Body_IsValid(physicsBody)) {
+                physicsWorldPtr->applyForceToCenter(physicsBody, fx * PIXELS_PER_METER * 60.0f, fy * PIXELS_PER_METER * 60.0f);
+            } else {
+                accel.x += fx;
+                accel.y += fy;
+            }
+            fuel -= HORIZONTAL_FUEL_CONSUMPTION;
+            isBraking = true;
+            brakeFlameCounter = 0;
         }
     }
     if (fuel < 0){
         fuel = 0;
-        thrust_dir = NONE;
+        isBraking = false;
     }
 }
 
@@ -112,8 +125,12 @@ void Ship::initPhysics(PhysicsWorld& world) {
     physicsBody = world.createBody(this, PhysicsBodyType::DYNAMIC, 1.0f, 0.3f, BOUNCE_FACTOR);
     if (b2Body_IsValid(physicsBody)) {
         b2Body_SetLinearDamping(physicsBody, 0.0f);
-        b2Body_SetAngularDamping(physicsBody, 0.0f);
-        b2Body_SetFixedRotation(physicsBody, true);
+        b2Body_SetAngularDamping(physicsBody, 3.0f);  // Angular damping for smooth rotation feel
+        b2Body_SetFixedRotation(physicsBody, false);  // Enable rotation
+        // Set initial rotation
+        b2Vec2 position = b2Body_GetPosition(physicsBody);
+        b2Rot rotation = b2MakeRot(angle);
+        b2Body_SetTransform(physicsBody, position, rotation);
     }
 }
 
@@ -122,11 +139,14 @@ void Ship::syncFromPhysics() {
 
     b2Vec2 physPos = physicsWorldPtr->getPosition(physicsBody);
     b2Vec2 physVel = physicsWorldPtr->getLinearVelocity(physicsBody);
+    b2Rot rotation = b2Body_GetRotation(physicsBody);
 
     pos.x = physPos.x;
     pos.y = physPos.y;
     vel.x = physVel.x;
     vel.y = physVel.y;
+    angle = b2Rot_GetAngle(rotation);
+    angularVelocity = b2Body_GetAngularVelocity(physicsBody);
 }
 
 // Draw a flame triangle with manual rotation
@@ -161,23 +181,33 @@ void Ship::draw_flame(float tx, float ty, float scale, float angle){
     draw_filled_triangle(r1x, r1y, r2x, r2y, r3x, r3y, flame_color);
 }
 
-void Ship::draw_flames(void){
-    if (thrust_dir != NONE){
-        if (thrust_dir & LEFT){
-            draw_flame(pos.x+width2+thick/2, pos.y, 0.75, -M_PI);
-            flame_counter[0]++;
+void Ship::draw_thrust_flame(void){
+    if (isThrusting){
+        // Draw flame behind the ship (opposite to facing direction)
+        // Position flame behind ship, but point it in ship's facing direction
+        // so the exhaust extends backward (away from the ship)
+        float flameAngle = angle;  // Point in ship's facing direction
+        float flameDist = height2 + thick/2;
+        float tx = pos.x + cos(angle + M_PI) * flameDist;  // Position behind ship
+        float ty = pos.y + sin(angle + M_PI) * flameDist;
+        draw_flame(tx, ty, 1.0f, flameAngle);
+        thrustFlameCounter++;
+        if (thrustFlameCounter >= 3) {
+            isThrusting = false;
         }
-        if (thrust_dir & RIGHT){
-            draw_flame(pos.x-width2-thick/2, pos.y, 0.75, 0);
-            flame_counter[1]++;
-        }
-        if (thrust_dir & UP){
-            draw_flame(pos.x, pos.y+height2+thick/2, 1.0, -M_PI/2);
-            flame_counter[2]++;
-        }
-        if (thrust_dir & DOWN){
-            draw_flame(pos.x, pos.y-height2-thick/2, 1.0, M_PI/2);
-            flame_counter[3]++;
+    }
+}
+
+void Ship::draw_brake_flame(void){
+    if (isBraking){
+        // Draw small flames on the sides when braking
+        float flameDist = height2 + thick/2;
+        float tx = pos.x + cos(angle) * flameDist;
+        float ty = pos.y + sin(angle) * flameDist;
+        draw_flame(tx, ty, 0.5f, angle);
+        brakeFlameCounter++;
+        if (brakeFlameCounter >= 3) {
+            isBraking = false;
         }
     }
 }
@@ -185,33 +215,50 @@ void Ship::draw_flames(void){
 void Ship::draw(void){
     computeRect();
 
-    draw_flames();
+    // Draw thrust flames
+    draw_thrust_flame();
+    draw_brake_flame();
 
-    // Draw ship body (rounded rectangle outline)
+    // Draw rotated ship body as a triangle pointing in facing direction
     GameColor ship_color = map_rgb(2, 255, 255);
-    draw_rounded_rect(
-        rect.tl.x, rect.tl.y, rect.br.x, rect.br.y,
-        1, 1, ship_color, thick
-    );
 
-    // Draw fuel gauge
+    // Ship is a triangle: nose at front, two points at back
+    float cosA = cos(angle);
+    float sinA = sin(angle);
+
+    // Triangle vertices (relative to center, pointing right when angle=0)
+    // Nose point (front)
+    float nose_len = height2;
+    float nx = pos.x + cosA * nose_len;
+    float ny = pos.y + sinA * nose_len;
+
+    // Back left point
+    float back_len = height2;
+    float wing_spread = width2 * 1.5f;
+    float blx = pos.x - cosA * back_len - sinA * wing_spread;
+    float bly = pos.y - sinA * back_len + cosA * wing_spread;
+
+    // Back right point
+    float brx = pos.x - cosA * back_len + sinA * wing_spread;
+    float bry = pos.y - sinA * back_len - cosA * wing_spread;
+
+    // Draw ship outline as triangle
+    draw_line(nx, ny, blx, bly, ship_color, thick);
+    draw_line(blx, bly, brx, bry, ship_color, thick);
+    draw_line(brx, bry, nx, ny, ship_color, thick);
+
+    // Draw fuel gauge as a line inside the ship
     if (fuel > 0){
-        float fuel_ratio = (fuel_start - fuel)/fuel_start;
-        float tly = (rect.br.y-thick/2) - ((rect.br.y-thick/2) - (rect.tl.y+thick/2))*(1-fuel_ratio);
+        float fuel_ratio = fuel / fuel_start;
         GameColor fuel_color = map_rgb(255, 30, 2);
-        draw_filled_rect(
-            rect.tl.x+thick/2, tly, rect.br.x-thick/2, rect.br.y-thick/2,
-            fuel_color
-        );
+
+        // Draw fuel as a line from back to front, length proportional to fuel
+        float gauge_len = height2 * 0.8f * fuel_ratio;
+        float gauge_start_x = pos.x - cosA * (height2 * 0.4f);
+        float gauge_start_y = pos.y - sinA * (height2 * 0.4f);
+        float gauge_end_x = gauge_start_x + cosA * gauge_len;
+        float gauge_end_y = gauge_start_y + sinA * gauge_len;
+
+        draw_line(gauge_start_x, gauge_start_y, gauge_end_x, gauge_end_y, fuel_color, thick * 0.5f);
     }
-
-    if (flame_counter[0] >= 3)
-        thrust_dir &= ~LEFT;
-    if (flame_counter[1] >= 3)
-        thrust_dir &= ~RIGHT;
-    if (flame_counter[2] >= 3)
-        thrust_dir &= ~UP;
-    if (flame_counter[3] >= 3)
-        thrust_dir &= ~DOWN;
-
 }

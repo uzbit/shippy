@@ -31,6 +31,8 @@ set(SOURCES
     starfield.cpp
     sdl_compat.cpp
     physics_world.cpp
+    projectile.cpp
+    asteroid.cpp
 )
 
 add_executable(shippy ${SOURCES})

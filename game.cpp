@@ -21,7 +21,7 @@ using namespace std;
 Game::Game()
 :coordx(0), coordy(0), space_index(-1), prev_space_index(-1), done(false), difficulty(1),
  window(nullptr), renderer(nullptr), font(nullptr), mixer(nullptr),
- music_audio(nullptr), music_track(nullptr), buffer(nullptr){
+ music_audio(nullptr), music_track(nullptr), buffer(nullptr), trailBuffer(nullptr), lastFireTime(0), fireRate(200){
 }
 
 Game::~Game(){
@@ -115,6 +115,17 @@ void Game::init_graphics(void){
                                window_width, window_height);
     SDL_SetTextureBlendMode(buffer, SDL_BLENDMODE_BLEND);
 
+    // Create trail buffer for tracer effect (persistent between frames)
+    trailBuffer = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888,
+                                    SDL_TEXTUREACCESS_TARGET,
+                                    window_width, window_height);
+    SDL_SetTextureBlendMode(trailBuffer, SDL_BLENDMODE_BLEND);
+    // Clear trail buffer initially
+    SDL_SetRenderTarget(renderer, trailBuffer);
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    SDL_RenderClear(renderer);
+    SDL_SetRenderTarget(renderer, NULL);
+
     done = false;
     last_frame_time = SDL_GetTicks();
 }
@@ -153,14 +164,12 @@ void Game::adjust_ship_position(void){
     } while(collision.collides);
 
     if (b2Body_IsValid(ship->physicsBody)) {
-        physicsWorld.setTransform(ship->physicsBody, ship->pos.x, ship->pos.y, 0);
+        physicsWorld.setTransform(ship->physicsBody, ship->pos.x, ship->pos.y, ship->angle);
     }
 }
 
 void Game::add_space(int coordx, int coordy){
-    int num = rand() % (10*((10-difficulty) + 1));
-    bool gravitate_bodies = false; //(num < 1);
-    Space space = Space(rand()%BODY_COUNT + 1, coordx, coordy, window_width, window_height, gravitate_bodies);
+    Space space = Space(coordx, coordy, window_width, window_height);
     space.init(difficulty);
     spaces.push_back(space);
     space_index = spaces.size() - 1;
@@ -174,6 +183,8 @@ void Game::update_graphics(void){
     starfield.draw();
     spaces[space_index].draw();
     ship->draw();
+    for (auto& proj : projectiles)
+        proj.draw();
     for (auto& duder : spaces[space_index].duders)
         draw_duder_bias(&duder);
     draw_info();
@@ -194,12 +205,31 @@ void Game::update_game(void){
         enableSpacePhysics(spaces[space_index]);
     }
 
+    // Update trippy/theme state based on current space's traits
+    if (space_index >= 0) {
+        SpaceTraits& traits = spaces[space_index].traits;
+        g_trippyLevel = traits.trippyLevel;
+        g_colorTheme = static_cast<int>(traits.theme);
+        g_tracerLength = traits.tracerLength;
+
+        // Increment hue shift for trippy effect (speed based on level)
+        if (g_trippyLevel > 0) {
+            g_hueShift += g_trippyLevel * 2.0f;  // 2-6 degrees per frame
+            if (g_hueShift >= 360.0f) g_hueShift -= 360.0f;
+        } else {
+            g_hueShift = 0.0f;
+        }
+    }
+
     starfield.update();
     ship->gravitate_bodies(spaces[space_index]);
+    applyGravityWells();
 
     physicsWorld.step(1.0f / 60.0f);
 
     ship->update();
+    updateProjectiles();
+    updateAsteroids();
     processCollisions();
     update_space();
 }
@@ -234,7 +264,7 @@ void Game::update_space(void){
         ship->pos.x = newX;
         ship->pos.y = newY;
         if (b2Body_IsValid(ship->physicsBody)) {
-            physicsWorld.setTransform(ship->physicsBody, newX, newY, 0);
+            physicsWorld.setTransform(ship->physicsBody, newX, newY, ship->angle);
             b2Vec2 vel = physicsWorld.getLinearVelocity(ship->physicsBody);
             ship->vel.x = vel.x;
             ship->vel.y = vel.y;
@@ -246,7 +276,7 @@ void Game::update_space(void){
         ship->pos.y = window_height - EARTH_HEIGHT - ship->height2;
         ship->vel.y = 0;
         if (b2Body_IsValid(ship->physicsBody)) {
-            physicsWorld.setTransform(ship->physicsBody, ship->pos.x, ship->pos.y, 0);
+            physicsWorld.setTransform(ship->physicsBody, ship->pos.x, ship->pos.y, ship->angle);
             physicsWorld.setLinearVelocity(ship->physicsBody, ship->vel.x, 0);
         }
     }
@@ -267,14 +297,204 @@ int Game::get_space_index(void){
     return space_index;
 }
 
+void Game::applyGravityWells(void){
+    if (space_index < 0) return;
+
+    Space& space = spaces[space_index];
+    const float G = 30.0f;  // Gravitational constant (tuned for gameplay)
+    const float maxForce = 8.0f;  // Cap force so gravity wells are escapable
+
+    for (int i = 0; i < space.body_count; i++) {
+        Body* body = space.bodies[i];
+        if (!body->isGravityWell) continue;
+
+        // Calculate direction from ship to gravity well
+        float dx = body->pos.x - ship->pos.x;
+        float dy = body->pos.y - ship->pos.y;
+        float distSq = dx * dx + dy * dy;
+        float dist = sqrt(distSq);
+
+        // Avoid division by zero and limit force at very close distances
+        if (dist < 80.0f) dist = 80.0f;
+
+        // Calculate gravitational force: F = G * strength / r^2
+        float force = G * body->gravityStrength / distSq;
+
+        // Cap the force so gravity wells are escapable with thrust
+        if (force > maxForce) force = maxForce;
+
+        // Normalize direction and apply force
+        float fx = (dx / dist) * force;
+        float fy = (dy / dist) * force;
+
+        if (physicsWorld.isValid() && b2Body_IsValid(ship->physicsBody)) {
+            physicsWorld.applyForceToCenter(ship->physicsBody,
+                fx * PIXELS_PER_METER * 60.0f,
+                fy * PIXELS_PER_METER * 60.0f);
+        } else {
+            ship->accel.x += fx;
+            ship->accel.y += fy;
+        }
+    }
+}
+
+void Game::fireProjectile(void) {
+    Uint64 currentTime = SDL_GetTicks();
+    if (currentTime - lastFireTime < fireRate) return;
+
+    lastFireTime = currentTime;
+
+    // Create projectile at ship's nose position
+    float noseX = ship->pos.x + cos(ship->angle) * ship->height2;
+    float noseY = ship->pos.y + sin(ship->angle) * ship->height2;
+
+    // Projectile speed relative to ship
+    float projectileSpeed = 50.0f;
+
+    projectiles.emplace_back(noseX, noseY, ship->angle, projectileSpeed);
+    Projectile& proj = projectiles.back();
+
+    // Add ship's velocity so projectiles inherit momentum
+    proj.vel.x += ship->vel.x;
+    proj.vel.y += ship->vel.y;
+
+    proj.initPhysics(physicsWorld);
+}
+
+void Game::updateProjectiles(void) {
+    // Update all projectiles
+    for (auto& proj : projectiles) {
+        proj.update();
+    }
+
+    // Remove expired projectiles and those that went off-screen
+    for (auto it = projectiles.begin(); it != projectiles.end(); ) {
+        bool shouldRemove = it->isExpired();
+
+        // Check if off-screen (with some margin)
+        float margin = 100.0f;
+        if (it->pos.x < -margin || it->pos.x > window_width + margin ||
+            it->pos.y < -margin || it->pos.y > window_height + margin) {
+            shouldRemove = true;
+        }
+
+        if (shouldRemove) {
+            it->destroyPhysics(physicsWorld);
+            it = projectiles.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
+void Game::updateAsteroids(void) {
+    if (space_index < 0) return;
+
+    Space& space = spaces[space_index];
+
+    // Update all asteroids
+    for (auto& asteroid : space.asteroids) {
+        if (!asteroid.isDestroyed()) {
+            asteroid.update();
+
+            // Wrap asteroids around screen edges
+            if (asteroid.pos.x < -asteroid.getRadius()) {
+                asteroid.pos.x = window_width + asteroid.getRadius();
+                if (b2Body_IsValid(asteroid.physicsBody)) {
+                    physicsWorld.setTransform(asteroid.physicsBody, asteroid.pos.x, asteroid.pos.y, asteroid.angle);
+                }
+            }
+            if (asteroid.pos.x > window_width + asteroid.getRadius()) {
+                asteroid.pos.x = -asteroid.getRadius();
+                if (b2Body_IsValid(asteroid.physicsBody)) {
+                    physicsWorld.setTransform(asteroid.physicsBody, asteroid.pos.x, asteroid.pos.y, asteroid.angle);
+                }
+            }
+            if (asteroid.pos.y < -asteroid.getRadius()) {
+                asteroid.pos.y = window_height + asteroid.getRadius();
+                if (b2Body_IsValid(asteroid.physicsBody)) {
+                    physicsWorld.setTransform(asteroid.physicsBody, asteroid.pos.x, asteroid.pos.y, asteroid.angle);
+                }
+            }
+            if (asteroid.pos.y > window_height + asteroid.getRadius()) {
+                asteroid.pos.y = -asteroid.getRadius();
+                if (b2Body_IsValid(asteroid.physicsBody)) {
+                    physicsWorld.setTransform(asteroid.physicsBody, asteroid.pos.x, asteroid.pos.y, asteroid.angle);
+                }
+            }
+        }
+    }
+
+    // Remove destroyed asteroids
+    for (auto it = space.asteroids.begin(); it != space.asteroids.end(); ) {
+        if (it->isDestroyed()) {
+            it->destroyPhysics(physicsWorld);
+            it = space.asteroids.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
+void Game::spawnChildAsteroids(Asteroid& parent) {
+    if (space_index < 0) return;
+
+    Space& space = spaces[space_index];
+
+    // Determine child size
+    AsteroidSize childSize;
+    int childCount;
+
+    switch (parent.getSize()) {
+        case AsteroidSize::LARGE:
+            childSize = AsteroidSize::MEDIUM;
+            childCount = 2 + rand() % 2;  // 2-3 children
+            break;
+        case AsteroidSize::MEDIUM:
+            childSize = AsteroidSize::SMALL;
+            childCount = 2 + rand() % 2;  // 2-3 children
+            break;
+        case AsteroidSize::SMALL:
+            // Small asteroids don't spawn children
+            return;
+    }
+
+    for (int i = 0; i < childCount; i++) {
+        // Spawn at parent position with random offset
+        float offsetX = ((rand() % 40) - 20);
+        float offsetY = ((rand() % 40) - 20);
+
+        // Create asteroid directly in list (list has stable pointers)
+        space.asteroids.emplace_back(parent.pos.x + offsetX, parent.pos.y + offsetY, childSize);
+        Asteroid& child = space.asteroids.back();
+
+        // Give children some velocity away from center
+        float angle = (float)i * 2.0f * M_PI / childCount + ((rand() % 100) / 100.0f);
+        float speed = 2.0f + (rand() % 30) / 10.0f;
+        child.vel.x = cos(angle) * speed;
+        child.vel.y = sin(angle) * speed;
+
+        child.initPhysics(physicsWorld);
+    }
+}
+
 void Game::draw_info(void){
     GameColor color = map_rgb(255, 255, 255);
     float speed = sqrt(ship->vel.x*ship->vel.x + ship->vel.y*ship->vel.y);
 
+    // Build effects string
+    char effects[64] = "";
+    if (g_trippyLevel > 0 || g_tracerLength > 0) {
+        int pos = 0;
+        pos += snprintf(effects + pos, sizeof(effects) - pos, " |");
+        if (g_trippyLevel > 0) pos += snprintf(effects + pos, sizeof(effects) - pos, " Trippy:%d", g_trippyLevel);
+        if (g_tracerLength > 0) pos += snprintf(effects + pos, sizeof(effects) - pos, " Tracers:%d", g_tracerLength);
+    }
+
     char buf[512];
     snprintf(buf, sizeof(buf),
-        "Space Coordinate: (%d, %d) | Spaces Discovered: %ld | Biases Groked: %ld/%ld | Speed: %.1f | Fuel: %.1f",
-        coordx, coordy, spaces.size(), biases_groked.size(), biases.biases.size(), speed, ship->fuel
+        "(%d, %d) | Spaces: %ld | Biases: %ld/%ld | Speed: %.1f | Fuel: %.1f%s",
+        coordx, coordy, spaces.size(), biases_groked.size(), biases.biases.size(), speed, ship->fuel, effects
     );
 
     // Render text to surface, then create texture
@@ -302,6 +522,9 @@ void Game::initSpacePhysics(Space& space) {
     for (auto& duder : space.duders) {
         duder.initPhysics(physicsWorld);
     }
+    for (auto& asteroid : space.asteroids) {
+        asteroid.initPhysics(physicsWorld);
+    }
 }
 
 void Game::enableSpacePhysics(Space& space) {
@@ -320,6 +543,14 @@ void Game::enableSpacePhysics(Space& space) {
             }
         }
     }
+    for (auto& asteroid : space.asteroids) {
+        if (!asteroid.isDestroyed()) {
+            physicsWorld.enableBody(asteroid.physicsBody);
+            if (b2Body_IsValid(asteroid.physicsBody)) {
+                physicsWorld.setLinearVelocity(asteroid.physicsBody, asteroid.vel.x, asteroid.vel.y);
+            }
+        }
+    }
 }
 
 void Game::disableSpacePhysics(Space& space) {
@@ -332,13 +563,18 @@ void Game::disableSpacePhysics(Space& space) {
     for (auto& duder : space.duders) {
         physicsWorld.disableBody(duder.physicsBody);
     }
+    for (auto& asteroid : space.asteroids) {
+        physicsWorld.disableBody(asteroid.physicsBody);
+    }
 }
 
 void Game::processCollisions(void) {
     if (!physicsWorld.isValid()) return;
 
-    // Collect loots to remove (defer removal until after processing all events)
+    // Collect items to remove (defer removal until after processing all events)
     vector<Loot*> lootsToRemove;
+    vector<Asteroid*> asteroidsToDestroy;
+    vector<Projectile*> projectilesToDestroy;
 
     // SENSOR events for loot pickup (sensors don't generate contact events)
     b2SensorEvents sensorEvents = b2World_GetSensorEvents(physicsWorld.getWorldId());
@@ -407,18 +643,76 @@ void Game::processCollisions(void) {
         Body* bodyObj = dynamic_cast<Body*>(objA);
         if (!bodyObj) bodyObj = dynamic_cast<Body*>(objB);
 
+        Asteroid* asteroidObj = dynamic_cast<Asteroid*>(objA);
+        if (!asteroidObj) asteroidObj = dynamic_cast<Asteroid*>(objB);
+
+        Projectile* projectileObj = dynamic_cast<Projectile*>(objA);
+        if (!projectileObj) projectileObj = dynamic_cast<Projectile*>(objB);
+
         if (shipObj && duderObj && !duderObj->is_killed) {
-            int count = 0, mod = duderObj->random_val % biases.biases.size();
-            map<string, string>::iterator it;
-            for (it = biases.biases.begin(); it != biases.biases.end(); it++) {
-                if (count == mod) break;
-                count++;
-            }
+            auto it = std::next(biases.biases.begin(), duderObj->random_val % biases.biases.size());
             duderObj->bias = &(*it);
             duderObj->is_killed = true;
             // Disable physics body so killed duder doesn't collide
             physicsWorld.disableBody(duderObj->physicsBody);
             biases_groked.insert(duderObj->bias->first);
+        }
+
+        // Projectile-asteroid collision: destroy both, spawn children
+        if (projectileObj && asteroidObj && !asteroidObj->isDestroyed() && !projectileObj->isExpired()) {
+            // Check if not already marked for destruction
+            bool asteroidMarked = false;
+            for (Asteroid* a : asteroidsToDestroy) {
+                if (a == asteroidObj) { asteroidMarked = true; break; }
+            }
+            bool projectileMarked = false;
+            for (Projectile* p : projectilesToDestroy) {
+                if (p == projectileObj) { projectileMarked = true; break; }
+            }
+
+            if (!asteroidMarked) {
+                spawnChildAsteroids(*asteroidObj);
+                asteroidObj->destroy();
+                asteroidsToDestroy.push_back(asteroidObj);
+            }
+            if (!projectileMarked) {
+                projectileObj->expired = true;  // Immediately expire on hit
+                projectilesToDestroy.push_back(projectileObj);
+            }
+        }
+
+        // Projectile-duder collision: kill duder and destroy projectile
+        if (projectileObj && duderObj && !duderObj->is_killed && !projectileObj->isExpired()) {
+            bool projectileMarked = false;
+            for (Projectile* p : projectilesToDestroy) {
+                if (p == projectileObj) { projectileMarked = true; break; }
+            }
+
+            // Kill the duder and assign a random bias
+            auto it = std::next(biases.biases.begin(), duderObj->random_val % biases.biases.size());
+            duderObj->bias = &(*it);
+            duderObj->is_killed = true;
+            physicsWorld.disableBody(duderObj->physicsBody);
+            biases_groked.insert(duderObj->bias->first);
+
+            // Destroy the projectile
+            if (!projectileMarked) {
+                projectileObj->expired = true;
+                projectilesToDestroy.push_back(projectileObj);
+            }
+        }
+
+        // Ship-asteroid collision: damage ship (lose fuel)
+        if (shipObj && asteroidObj && !asteroidObj->isDestroyed()) {
+            // Lose fuel proportional to asteroid size
+            float damage = 100.0f;
+            switch (asteroidObj->getSize()) {
+                case AsteroidSize::SMALL: damage = 50.0f; break;
+                case AsteroidSize::MEDIUM: damage = 150.0f; break;
+                case AsteroidSize::LARGE: damage = 300.0f; break;
+            }
+            ship->fuel -= damage;
+            if (ship->fuel < 0) ship->fuel = 0;
         }
 
         // Duder-body collisions are handled automatically by Box2D physics
@@ -432,6 +726,30 @@ void Game::processCollisions(void) {
             if (&(*it) == lootObj) {
                 lootObj->destroyPhysics(physicsWorld);
                 curr_space->loots.erase(it);
+                break;
+            }
+        }
+    }
+
+    // Remove destroyed asteroids
+    for (Asteroid* asteroidObj : asteroidsToDestroy) {
+        for (auto it = curr_space->asteroids.begin(); it != curr_space->asteroids.end(); ++it) {
+            if (&(*it) == asteroidObj) {
+                asteroidObj->destroyPhysics(physicsWorld);
+                curr_space->asteroids.erase(it);
+                break;
+            }
+        }
+    }
+
+    // Expire projectiles that hit asteroids
+    for (Projectile* projObj : projectilesToDestroy) {
+        for (auto& proj : projectiles) {
+            if (&proj == projObj) {
+                // Mark as expired so it gets cleaned up in updateProjectiles
+                if (proj.getBounceCount() >= proj.maxBounces) {
+                    // Already handled
+                }
                 break;
             }
         }
@@ -539,17 +857,24 @@ void Game::apply_loot(Loot *loot){
 void Game::handle_input(void){
     const bool* keys = SDL_GetKeyboardState(NULL);
 
-    if (keys[SDL_SCANCODE_UP] || keys[SDL_SCANCODE_W])
-        ship->thrust_vertical(-1);
-
-    if (keys[SDL_SCANCODE_DOWN] || keys[SDL_SCANCODE_S])
-        ship->thrust_vertical(1);
-
+    // Rotation controls (left/right or A/D)
     if (keys[SDL_SCANCODE_RIGHT] || keys[SDL_SCANCODE_D])
-        ship->thrust_horizontal(1);
+        ship->rotate(1);
 
     if (keys[SDL_SCANCODE_LEFT] || keys[SDL_SCANCODE_A])
-        ship->thrust_horizontal(-1);
+        ship->rotate(-1);
+
+    // Thrust forward (up or W)
+    if (keys[SDL_SCANCODE_UP] || keys[SDL_SCANCODE_W])
+        ship->thrust(1);
+
+    // Brake (down or S)
+    if (keys[SDL_SCANCODE_DOWN] || keys[SDL_SCANCODE_S])
+        ship->brake(1);
+
+    // Fire projectile (Space)
+    if (keys[SDL_SCANCODE_SPACE])
+        fireProjectile();
 
     if (keys[SDL_SCANCODE_ESCAPE])
         done = true;
@@ -578,16 +903,54 @@ void Game::loop(void){
         // Update game logic
         update_game();
 
-        // Render to buffer
-        SDL_SetRenderTarget(renderer, buffer);
-        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-        SDL_RenderClear(renderer);
-        update_graphics();
+        if (g_tracerLength > 0) {
+            // Tracer mode: use texture alpha modulation for fading trails
+            // tracerLength 5 = alpha 200 (fast fade), 100 = alpha 245 (slow fade, long trails)
+            // Keep max under 250 so trails fully fade to black over time
+            Uint8 trailAlpha = 200 + ((g_tracerLength - 5) * 45) / 95;
+            if (trailAlpha > 245) trailAlpha = 245;
 
-        // Render buffer to screen
-        SDL_SetRenderTarget(renderer, NULL);
-        SDL_RenderTexture(renderer, buffer, NULL, NULL);
-        SDL_RenderPresent(renderer);
+            // Draw to main buffer: first the faded trail, then current frame
+            SDL_SetRenderTarget(renderer, buffer);
+            SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+            SDL_RenderClear(renderer);
+
+            // Draw previous trail with faded alpha
+            SDL_SetTextureAlphaMod(trailBuffer, trailAlpha);
+            SDL_RenderTexture(renderer, trailBuffer, NULL, NULL);
+            SDL_SetTextureAlphaMod(trailBuffer, 255);  // Reset
+
+            // Draw current frame on top
+            update_graphics();
+
+            // Copy buffer to trailBuffer for next frame (use NONE to replace, not blend)
+            SDL_SetRenderTarget(renderer, trailBuffer);
+            SDL_SetTextureBlendMode(buffer, SDL_BLENDMODE_NONE);
+            SDL_RenderTexture(renderer, buffer, NULL, NULL);
+            SDL_SetTextureBlendMode(buffer, SDL_BLENDMODE_BLEND);  // Restore
+
+            // Copy buffer to screen
+            SDL_SetRenderTarget(renderer, NULL);
+            SDL_RenderTexture(renderer, buffer, NULL, NULL);
+            SDL_RenderPresent(renderer);
+        } else {
+            // Normal mode: use buffer for clean double-buffering
+            SDL_SetRenderTarget(renderer, buffer);
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+            SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+            SDL_RenderClear(renderer);
+            update_graphics();
+
+            // Clear trail buffer so it's fresh when entering tracer space
+            SDL_SetRenderTarget(renderer, trailBuffer);
+            SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+            SDL_RenderClear(renderer);
+
+            // Render buffer to screen
+            SDL_SetRenderTarget(renderer, NULL);
+            SDL_RenderTexture(renderer, buffer, NULL, NULL);
+            SDL_RenderPresent(renderer);
+        }
 
         // Frame rate limiting (VSync should handle this, but as backup)
         Uint64 frame_time = SDL_GetTicks() - frame_start;
@@ -606,6 +969,9 @@ void Game::abort(const char* message){
 void Game::shutdown(void){
     if (buffer)
         SDL_DestroyTexture(buffer);
+
+    if (trailBuffer)
+        SDL_DestroyTexture(trailBuffer);
 
     if (font)
         TTF_CloseFont(font);

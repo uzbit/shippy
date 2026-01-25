@@ -14,6 +14,8 @@
 #include "duder.h"
 #include "starfield.h"
 #include "physics_world.h"
+#include "projectile.h"
+#include "asteroid.h"
 
 using namespace std;
 
@@ -49,6 +51,11 @@ class Game{
     void enableSpacePhysics(Space& space);
     void disableSpacePhysics(Space& space);
     void processCollisions(void);
+    void applyGravityWells(void);
+    void fireProjectile(void);
+    void updateProjectiles(void);
+    void updateAsteroids(void);
+    void spawnChildAsteroids(Asteroid& parent);
 
     bool done;
     SDL_Window* window;
@@ -58,6 +65,7 @@ class Game{
     MIX_Audio* music_audio;
     MIX_Track* music_track;
     SDL_Texture* buffer;
+    SDL_Texture* trailBuffer;  // Persistent buffer for tracer effect
 
     Ship *ship; // make multiplayer
     deque<Space> spaces;
@@ -71,6 +79,9 @@ class Game{
     bool redraw;
     Uint64 last_frame_time;
     PhysicsWorld physicsWorld;
+    list<Projectile> projectiles;
+    Uint64 lastFireTime;
+    Uint64 fireRate;  // Milliseconds between shots
 
 };
 

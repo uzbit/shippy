@@ -25,8 +25,9 @@ class Ship : public Object{
 
     void gravitate_bodies(Space &space);
     void update(void);
-    void thrust_vertical(float scale);
-    void thrust_horizontal(float scale);
+    void rotate(float scale);
+    void thrust(float scale);
+    void brake(float scale);
     void draw(void);
 
     void initPhysics(PhysicsWorld& world) override;
@@ -36,20 +37,26 @@ class Ship : public Object{
     Point vel;
     Point accel;
     float fuel, fuel_start;
+    float angle;           // Ship facing angle in radians (0 = right, PI/2 = down)
+    float angularVelocity; // Angular velocity for smooth rotation
 
     private:
     Point prev_pos;
     float offset;
     float prev_t, cur_t;
     float mass;
-    float thrustx, thrusty;
-    int thrust_dir;
-    int flame_counter[4];
+    float thrustPower;
+    float rotatePower;
+    bool isThrusting;
+    bool isBraking;
+    int thrustFlameCounter;
+    int brakeFlameCounter;
     float thick;
     PhysicsWorld* physicsWorldPtr = nullptr;
 
-    void draw_flame(float tx, float ty, float scale, float angle);
-    void draw_flames(void);
+    void draw_flame(float tx, float ty, float scale, float flameAngle);
+    void draw_thrust_flame(void);
+    void draw_brake_flame(void);
 
 
 };

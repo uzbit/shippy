@@ -21,6 +21,8 @@ class Body : public Object{
     int round, thick;
     GameColor color;
     float density;
+    float gravityStrength;  // 0 = normal body, >0 = gravity well (attracts other objects)
+    bool isGravityWell;
 };
 
 
