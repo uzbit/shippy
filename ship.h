@@ -6,6 +6,7 @@
 #include "space.h"
 #include "object.h"
 
+class PhysicsWorld;
 
 enum ThrustDirection{
     NONE = 0,
@@ -28,6 +29,10 @@ class Ship : public Object{
     void thrust_horizontal(float scale);
     void draw(void);
 
+    void initPhysics(PhysicsWorld& world) override;
+    void syncFromPhysics() override;
+    void setPhysicsWorld(PhysicsWorld* world) { physicsWorldPtr = world; }
+
     Point vel;
     Point accel;
     float fuel, fuel_start;
@@ -41,6 +46,7 @@ class Ship : public Object{
     int thrust_dir;
     int flame_counter[4];
     float thick;
+    PhysicsWorld* physicsWorldPtr = nullptr;
 
     void draw_flame(float tx, float ty, float scale, float angle);
     void draw_flames(void);

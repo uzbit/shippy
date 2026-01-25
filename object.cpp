@@ -2,16 +2,24 @@
 #include <iostream>
 #include "object.h"
 #include "collision.h"
+#include "physics_world.h"
 
 using namespace std;
 
 Object::Object(float x, float y, float width, float height)
-:width(width), height(height){
+:width(width), height(height), physicsBody(b2_nullBodyId){
     pos.x = x;
     pos.y = y;
     width2 = width/2;
     height2 = height/2;
     rect = computeRect();
+}
+
+void Object::destroyPhysics(PhysicsWorld& world) {
+    if (b2Body_IsValid(physicsBody)) {
+        world.destroyBody(physicsBody);
+        physicsBody = b2_nullBodyId;
+    }
 }
 
 Collision Object::collides(Object *obj){

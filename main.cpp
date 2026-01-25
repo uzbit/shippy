@@ -8,8 +8,8 @@
 using namespace std;
 
 // Default values
-const int DEFAULT_DIFFICULTY = 5;
-const bool DEFAULT_MUSIC = true;
+const int DEFAULT_DIFFICULTY = 0;
+const bool DEFAULT_MUSIC = false;
 const float DEFAULT_FULLSCREEN = 1.0f;
 
 void print_usage(const char* program) {

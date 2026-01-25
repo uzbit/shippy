@@ -10,6 +10,8 @@
 
 using namespace std;
 
+class PhysicsWorld;
+
 class Duder : public Object{
 
     public:
@@ -19,6 +21,9 @@ class Duder : public Object{
 
     void update(int w, int h);
     void draw(void);
+    void initPhysics(PhysicsWorld& world) override;
+    void syncFromPhysics() override;
+    void setPhysicsWorld(PhysicsWorld* world) { physicsWorldPtr = world; }
 
     Point vel;
     bool is_killed;
@@ -28,6 +33,7 @@ class Duder : public Object{
 
     private:
     float thick;
+    PhysicsWorld* physicsWorldPtr = nullptr;
 
 };
 

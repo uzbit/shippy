@@ -9,6 +9,7 @@
 #include "geom.h"
 #include "defines.h"
 #include "sdl_compat.h"
+#include "physics_world.h"
 
 using namespace std;
 
@@ -28,7 +29,12 @@ Ship::Ship(float x, float y, float fuel, float mass)
 
 void Ship::thrust_horizontal(float scale){
     if (fuel > 0){
-        accel.x += scale*thrustx/(mass + fuel*FUEL_MASS);
+        float force = scale * thrustx / (mass + fuel * FUEL_MASS);
+        if (physicsWorldPtr && b2Body_IsValid(physicsBody)) {
+            physicsWorldPtr->applyForceToCenter(physicsBody, force * PIXELS_PER_METER * 60.0f, 0);
+        } else {
+            accel.x += force;
+        }
         fuel -= HORIZONTAL_FUEL_CONSUMPTION;
         if (scale < 0){
             thrust_dir |= LEFT;
@@ -43,12 +49,16 @@ void Ship::thrust_horizontal(float scale){
         fuel = 0;
         thrust_dir = NONE;
     }
-    //cout << "ACCELX " << accel.x << endl;
 }
 
 void Ship::thrust_vertical(float scale){
     if (fuel > 0){
-        accel.y += scale*thrusty/(mass + fuel*FUEL_MASS);
+        float force = scale * thrusty / (mass + fuel * FUEL_MASS);
+        if (physicsWorldPtr && b2Body_IsValid(physicsBody)) {
+            physicsWorldPtr->applyForceToCenter(physicsBody, 0, force * PIXELS_PER_METER * 60.0f);
+        } else {
+            accel.y += force;
+        }
         fuel -= VERTICAL_FUEL_CONSUMPTION;
         if (scale < 0){
             thrust_dir |= UP;
@@ -63,7 +73,6 @@ void Ship::thrust_vertical(float scale){
         fuel = 0;
         thrust_dir = NONE;
     }
-    //cout << "ACCELY " << accel.y << endl;
 }
 
 void Ship::gravitate_bodies(Space &space){
@@ -86,12 +95,38 @@ void Ship::gravitate_bodies(Space &space){
 }
 
 void Ship::update(void){
-    pos.x += vel.x;
-    pos.y += vel.y;
-    vel.x += accel.x;
-    vel.y += 0.01 + accel.y; //gravity = 0.01
-    accel.x = 0;
-    accel.y = 0;
+    if (physicsWorldPtr && b2Body_IsValid(physicsBody)) {
+        syncFromPhysics();
+    } else {
+        pos.x += vel.x;
+        pos.y += vel.y;
+        vel.x += accel.x;
+        vel.y += 0.01 + accel.y; //gravity = 0.01
+        accel.x = 0;
+        accel.y = 0;
+    }
+}
+
+void Ship::initPhysics(PhysicsWorld& world) {
+    physicsWorldPtr = &world;
+    physicsBody = world.createBody(this, PhysicsBodyType::DYNAMIC, 1.0f, 0.3f, BOUNCE_FACTOR);
+    if (b2Body_IsValid(physicsBody)) {
+        b2Body_SetLinearDamping(physicsBody, 0.0f);
+        b2Body_SetAngularDamping(physicsBody, 0.0f);
+        b2Body_SetFixedRotation(physicsBody, true);
+    }
+}
+
+void Ship::syncFromPhysics() {
+    if (!physicsWorldPtr || !b2Body_IsValid(physicsBody)) return;
+
+    b2Vec2 physPos = physicsWorldPtr->getPosition(physicsBody);
+    b2Vec2 physVel = physicsWorldPtr->getLinearVelocity(physicsBody);
+
+    pos.x = physPos.x;
+    pos.y = physPos.y;
+    vel.x = physVel.x;
+    vel.y = physVel.y;
 }
 
 // Draw a flame triangle with manual rotation

@@ -19,20 +19,22 @@
 using namespace std;
 
 Game::Game()
-:coordx(0), coordy(0), space_index(-1), done(false), difficulty(1),
+:coordx(0), coordy(0), space_index(-1), prev_space_index(-1), done(false), difficulty(1),
  window(nullptr), renderer(nullptr), font(nullptr), mixer(nullptr),
  music_audio(nullptr), music_track(nullptr), buffer(nullptr){
 }
 
 Game::~Game(){
-    delete ship;
-    for (int i = 0; i < spaces.size(); i++){
-        for (int j=0; j < spaces[i].body_count; j++){
-            delete spaces[i].bodies[j];
-        }
-        delete spaces[i].bodies;
+    if (ship) {
+        delete ship;
     }
-    cout << "cleaned up" << endl;
+    for (auto& space : spaces){
+        for (int j=0; j < space.body_count; j++){
+            delete space.bodies[j];
+        }
+        delete space.bodies;
+    }
+    physicsWorld.destroy();
 }
 
 void Game::init_graphics(void){
@@ -45,8 +47,6 @@ void Game::init_graphics(void){
     if (mode) {
         window_width = (int)(mode->w * fullscreen);
         window_height = (int)(mode->h * fullscreen);
-        cout << fullscreen;
-        cout << window_width << endl;
     } else {
         window_width = 1280;
         window_height = 720;
@@ -120,9 +120,15 @@ void Game::init_graphics(void){
 }
 
 void Game::init_game(void){
+    physicsWorld.init(0.6f);
+
     ship = new Ship(window_width/2, window_height/2, FUEL_START, SHIP_MASS);
+    ship->initPhysics(physicsWorld);
+
     add_space(0, 0);
     adjust_ship_position();
+    enableSpacePhysics(spaces[space_index]);
+
     biases.load();
     starfield.init(window_width, window_height);
 }
@@ -145,70 +151,108 @@ void Game::adjust_ship_position(void){
             }
         }
     } while(collision.collides);
+
+    if (b2Body_IsValid(ship->physicsBody)) {
+        physicsWorld.setTransform(ship->physicsBody, ship->pos.x, ship->pos.y, 0);
+    }
 }
 
 void Game::add_space(int coordx, int coordy){
     int num = rand() % (10*((10-difficulty) + 1));
     bool gravitate_bodies = false; //(num < 1);
-    //cout << num << " " << gravitate_bodies <<endl;
     Space space = Space(rand()%BODY_COUNT + 1, coordx, coordy, window_width, window_height, gravitate_bodies);
     space.init(difficulty);
     spaces.push_back(space);
     space_index = spaces.size() - 1;
+
+    // Create physics bodies immediately (disabled by default)
+    initSpacePhysics(spaces[space_index]);
+    disableSpacePhysics(spaces[space_index]);
 }
 
 void Game::update_graphics(void){
     starfield.draw();
     spaces[space_index].draw();
     ship->draw();
-    for (int i=0; i < spaces[space_index].duders.size(); i++)
-        draw_duder_bias(&spaces[space_index].duders[i]);
+    for (auto& duder : spaces[space_index].duders)
+        draw_duder_bias(&duder);
     draw_info();
 }
 
 void Game::update_game(void){
+    prev_space_index = space_index;
     get_space_index();
 
-    if (space_index < 0)
+    if (space_index < 0) {
+        if (prev_space_index >= 0) {
+            disableSpacePhysics(spaces[prev_space_index]);
+        }
         add_space(coordx, coordy);
+        enableSpacePhysics(spaces[space_index]);
+    } else if (space_index != prev_space_index && prev_space_index >= 0) {
+        disableSpacePhysics(spaces[prev_space_index]);
+        enableSpacePhysics(spaces[space_index]);
+    }
 
     starfield.update();
     ship->gravitate_bodies(spaces[space_index]);
-    ship->update();
 
-    collide_duder_bodies();
-    collide_ship_bodies();
-    collide_ship_loot();
-    collide_ship_duder();
+    physicsWorld.step(1.0f / 60.0f);
+
+    ship->update();
+    processCollisions();
     update_space();
 }
 
 void Game::update_space(void){
+    bool positionChanged = false;
+    float newX = ship->pos.x;
+    float newY = ship->pos.y;
+
     if (ship->pos.x > window_width){
-        ship->pos.x = ship->width2;
+        newX = ship->width2;
         coordx += 1;
+        positionChanged = true;
     }
     if (ship->pos.x < 0){
-        ship->pos.x = window_width - ship->width2;
+        newX = window_width - ship->width2;
         coordx -= 1;
+        positionChanged = true;
     }
     if (ship->pos.y < 0){
-        ship->pos.y = window_height - ship->height2;
+        newY = window_height - ship->height2;
         coordy += 1;
+        positionChanged = true;
     }
     if (ship->pos.y > window_height){
-        ship->pos.y = ship->height2;
+        newY = ship->height2;
         coordy -= 1;
+        positionChanged = true;
+    }
+
+    if (positionChanged) {
+        ship->pos.x = newX;
+        ship->pos.y = newY;
+        if (b2Body_IsValid(ship->physicsBody)) {
+            physicsWorld.setTransform(ship->physicsBody, newX, newY, 0);
+            b2Vec2 vel = physicsWorld.getLinearVelocity(ship->physicsBody);
+            ship->vel.x = vel.x;
+            ship->vel.y = vel.y;
+        }
     }
 
     // fix falling through Earth.
     if (ship->pos.y + ship->height2 > window_height - EARTH_HEIGHT && coordy == 0){
         ship->pos.y = window_height - EARTH_HEIGHT - ship->height2;
         ship->vel.y = 0;
+        if (b2Body_IsValid(ship->physicsBody)) {
+            physicsWorld.setTransform(ship->physicsBody, ship->pos.x, ship->pos.y, 0);
+            physicsWorld.setLinearVelocity(ship->physicsBody, ship->vel.x, 0);
+        }
     }
 
-    for (int i=0; i < spaces[space_index].duders.size() ; i++)
-        spaces[space_index].duders[i].update(window_width, window_height);
+    for (auto& duder : spaces[space_index].duders)
+        duder.update(window_width, window_height);
 
 }
 
@@ -248,93 +292,147 @@ void Game::draw_info(void){
     (void)color; // Suppress unused variable warning
 }
 
-void Game::collide_ship_bodies(void){
-    for (int i=0; i < spaces[space_index].body_count; i++){
-        Body *body = spaces[space_index].bodies[i];
-        Collision collision = ship->collides(body);
-        if (collision.collides){
-            Collision *prev = &(body->prev_collision_map[ship]);
-            if (!prev->collides){
-                if (!prev->top || !prev->bottom){
-                    if (!prev->top)
-                        ship->pos.y = body->rect.br.y + ship->height2 + 0.01;
-                    if (!prev->bottom)
-                        ship->pos.y = body->rect.tl.y - ship->height2 - 0.01;
-                    ship->vel.y = -BOUNCE_FACTOR*ship->vel.y ; // Josiah add tha bounce
-                }
-                if (!prev->left || !prev->right){
-                    if (!prev->left)
-                        ship->pos.x = body->rect.tl.x - ship->width2 - 0.01;
-                    if (!prev->right)
-                        ship->pos.x = body->rect.br.x + ship->width2 + 0.01;
-                    ship->vel.x = -BOUNCE_FACTOR*ship->vel.x ; // Josiah add tha bounce
+void Game::initSpacePhysics(Space& space) {
+    for (int i = 0; i < space.body_count; i++) {
+        space.bodies[i]->initPhysics(physicsWorld);
+    }
+    for (auto& loot : space.loots) {
+        loot.initPhysics(physicsWorld);
+    }
+    for (auto& duder : space.duders) {
+        duder.initPhysics(physicsWorld);
+    }
+}
+
+void Game::enableSpacePhysics(Space& space) {
+    for (int i = 0; i < space.body_count; i++) {
+        physicsWorld.enableBody(space.bodies[i]->physicsBody);
+    }
+    for (auto& loot : space.loots) {
+        physicsWorld.enableBody(loot.physicsBody);
+    }
+    for (auto& duder : space.duders) {
+        if (!duder.is_killed) {
+            physicsWorld.enableBody(duder.physicsBody);
+            // Restore velocity for kinematic bodies (vel is pixels/frame, convert to pixels/second)
+            if (b2Body_IsValid(duder.physicsBody)) {
+                physicsWorld.setLinearVelocity(duder.physicsBody, duder.vel.x * FRAME_RATE, duder.vel.y * FRAME_RATE);
+            }
+        }
+    }
+}
+
+void Game::disableSpacePhysics(Space& space) {
+    for (int i = 0; i < space.body_count; i++) {
+        physicsWorld.disableBody(space.bodies[i]->physicsBody);
+    }
+    for (auto& loot : space.loots) {
+        physicsWorld.disableBody(loot.physicsBody);
+    }
+    for (auto& duder : space.duders) {
+        physicsWorld.disableBody(duder.physicsBody);
+    }
+}
+
+void Game::processCollisions(void) {
+    if (!physicsWorld.isValid()) return;
+
+    // Collect loots to remove (defer removal until after processing all events)
+    vector<Loot*> lootsToRemove;
+
+    // SENSOR events for loot pickup (sensors don't generate contact events)
+    b2SensorEvents sensorEvents = b2World_GetSensorEvents(physicsWorld.getWorldId());
+    for (int i = 0; i < sensorEvents.beginCount; i++) {
+        b2SensorBeginTouchEvent* event = sensorEvents.beginEvents + i;
+
+        // Check if shapes are still valid (might have been destroyed)
+        if (!b2Shape_IsValid(event->sensorShapeId) || !b2Shape_IsValid(event->visitorShapeId)) {
+            continue;
+        }
+
+        b2BodyId sensorBody = b2Shape_GetBody(event->sensorShapeId);
+        b2BodyId visitorBody = b2Shape_GetBody(event->visitorShapeId);
+
+        // Check if bodies are still valid
+        if (!b2Body_IsValid(sensorBody) || !b2Body_IsValid(visitorBody)) {
+            continue;
+        }
+
+        Object* sensorObj = (Object*)b2Body_GetUserData(sensorBody);
+        Object* visitorObj = (Object*)b2Body_GetUserData(visitorBody);
+
+        if (!sensorObj || !visitorObj) continue;
+
+        // Check for ship + loot
+        Ship* shipObj = dynamic_cast<Ship*>(visitorObj);
+        Loot* lootObj = dynamic_cast<Loot*>(sensorObj);
+
+        if (shipObj && lootObj) {
+            // Check if already marked for removal
+            bool alreadyMarked = false;
+            for (Loot* l : lootsToRemove) {
+                if (l == lootObj) {
+                    alreadyMarked = true;
+                    break;
                 }
             }
-        } else {
-            body->prev_collision_map[ship] = collision;
+            if (!alreadyMarked) {
+                apply_loot(lootObj);
+                lootsToRemove.push_back(lootObj);
+            }
         }
     }
-}
 
-void Game::collide_ship_loot(void){
-    Space *curr_space = &spaces[space_index];
+    // CONTACT events for physical collisions (ship/duder, duder/body)
+    b2ContactEvents contactEvents = b2World_GetContactEvents(physicsWorld.getWorldId());
+    for (int i = 0; i < contactEvents.beginCount; i++) {
+        b2ContactBeginTouchEvent* beginEvent = contactEvents.beginEvents + i;
 
-    for (int i=0; i < curr_space->loots.size(); i++){
-        Collision collision = ship->collides(&curr_space->loots[i]);
-        if (collision.collides){
-            apply_loot(&curr_space->loots[i]);
-            curr_space->loots.erase(curr_space->loots.begin()+i);
-        } else {
-            curr_space->loots[i].prev_collision_map[ship] = collision;
+        // Check if shapes are still valid
+        if (!b2Shape_IsValid(beginEvent->shapeIdA) || !b2Shape_IsValid(beginEvent->shapeIdB)) {
+            continue;
         }
-    }
-}
 
-void Game::collide_ship_duder(void){
-    Space *curr_space = &spaces[space_index];
+        Object* objA = (Object*)b2Shape_GetUserData(beginEvent->shapeIdA);
+        Object* objB = (Object*)b2Shape_GetUserData(beginEvent->shapeIdB);
 
-    for (int i=0; i < curr_space->duders.size(); i++){
-        if (curr_space->duders[i].is_killed) continue;
+        if (!objA || !objB) continue;
 
-        Collision collision = ship->collides(&curr_space->duders[i]);
-        if (collision.collides){
-            int count = 0, mod = curr_space->duders[i].random_val % biases.biases.size();
+        Ship* shipObj = dynamic_cast<Ship*>(objA);
+        if (!shipObj) shipObj = dynamic_cast<Ship*>(objB);
+
+        Duder* duderObj = dynamic_cast<Duder*>(objA);
+        if (!duderObj) duderObj = dynamic_cast<Duder*>(objB);
+
+        Body* bodyObj = dynamic_cast<Body*>(objA);
+        if (!bodyObj) bodyObj = dynamic_cast<Body*>(objB);
+
+        if (shipObj && duderObj && !duderObj->is_killed) {
+            int count = 0, mod = duderObj->random_val % biases.biases.size();
             map<string, string>::iterator it;
-            for (it=biases.biases.begin(); it != biases.biases.end(); it++){
-                if (count == mod)
-                    break;
+            for (it = biases.biases.begin(); it != biases.biases.end(); it++) {
+                if (count == mod) break;
                 count++;
             }
-            curr_space->duders[i].bias = &(*it);
-            curr_space->duders[i].is_killed = true;
-            cout << curr_space->duders[i].bias->first << endl;
-            biases_groked.insert(curr_space->duders[i].bias->first);
-        } else {
-            curr_space->duders[i].prev_collision_map[ship] = collision;
+            duderObj->bias = &(*it);
+            duderObj->is_killed = true;
+            // Disable physics body so killed duder doesn't collide
+            physicsWorld.disableBody(duderObj->physicsBody);
+            biases_groked.insert(duderObj->bias->first);
         }
+
+        // Duder-body collisions are handled automatically by Box2D physics
+        // with restitution = 1.0 for proper bouncing
     }
-}
 
-void Game::collide_duder_bodies(void){
-    Space *curr_space = &spaces[space_index];
-
-    for (int i=0; i < curr_space->duders.size(); i++){
-        if (curr_space->duders[i].is_killed) continue;
-        for (int j=0; j < curr_space->body_count; j++){
-            Collision collision = curr_space->duders[i].collides(curr_space->bodies[j]);
-            if (collision.collides){
-                Collision *prev = &(curr_space->duders[i].prev_collision_map[curr_space->bodies[j]]);
-
-                if (!prev->collides){
-                    if (!prev->top || !prev->bottom){
-                        curr_space->duders[i].vel.y = -curr_space->duders[i].vel.y;
-                    }
-                    if (!prev->left || !prev->right){
-                        curr_space->duders[i].vel.x = -curr_space->duders[i].vel.x;
-                    }
-                }
-            } else {
-                curr_space->duders[i].prev_collision_map[curr_space->bodies[j]] = collision;
+    // Now safely remove collected loots after all events processed
+    Space* curr_space = &spaces[space_index];
+    for (Loot* lootObj : lootsToRemove) {
+        for (auto it = curr_space->loots.begin(); it != curr_space->loots.end(); ++it) {
+            if (&(*it) == lootObj) {
+                lootObj->destroyPhysics(physicsWorld);
+                curr_space->loots.erase(it);
+                break;
             }
         }
     }
@@ -429,6 +527,11 @@ void Game::apply_loot(Loot *loot){
         case BOOST:
             ship->vel.x *= loot->value;
             ship->vel.y *= loot->value;
+            if (b2Body_IsValid(ship->physicsBody)) {
+                physicsWorld.setLinearVelocity(ship->physicsBody, ship->vel.x, ship->vel.y);
+            }
+            break;
+        case NUM_LOOT:
             break;
     }
 }

@@ -5,6 +5,8 @@
 #include "object.h"
 #include "collision.h"
 
+class PhysicsWorld;
+
 class Body : public Object{
 
     public:
@@ -13,6 +15,7 @@ class Body : public Object{
     ~Body(){}
 
     void draw(void);
+    void initPhysics(PhysicsWorld& world) override;
 
     bool filled;
     int round, thick;

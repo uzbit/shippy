@@ -5,6 +5,7 @@
 #include "duder.h"
 #include "geom.h"
 #include "defines.h"
+#include "physics_world.h"
 
 using namespace std;
 
@@ -20,13 +21,50 @@ Duder::Duder(float x, float y, float width, float height)
     is_killed = false;
 }
 
+void Duder::initPhysics(PhysicsWorld& world) {
+    physicsWorldPtr = &world;
+    // Use DYNAMIC instead of KINEMATIC so duders collide with static bodies
+    physicsBody = world.createBody(this, PhysicsBodyType::DYNAMIC, 0.5f, 0.0f, 1.0f);
+    if (b2Body_IsValid(physicsBody)) {
+        // Disable gravity for duders so they float
+        b2Body_SetGravityScale(physicsBody, 0.0f);
+        b2Body_SetFixedRotation(physicsBody, true);
+        b2Body_SetLinearDamping(physicsBody, 0.0f);
+        // vel is pixels/frame, convert to pixels/second for physics
+        world.setLinearVelocity(physicsBody, vel.x * FRAME_RATE, vel.y * FRAME_RATE);
+    }
+}
+
+void Duder::syncFromPhysics() {
+    if (!physicsWorldPtr || !b2Body_IsValid(physicsBody)) return;
+
+    b2Vec2 physPos = physicsWorldPtr->getPosition(physicsBody);
+    b2Vec2 physVel = physicsWorldPtr->getLinearVelocity(physicsBody);
+    pos.x = physPos.x;
+    pos.y = physPos.y;
+    // Sync velocity back (convert from pixels/second to pixels/frame)
+    vel.x = physVel.x / FRAME_RATE;
+    vel.y = physVel.y / FRAME_RATE;
+}
 
 void Duder::update(int w, int h){
     if (!is_killed){
-        pos.x += vel.x;
-        pos.y += vel.y;
-        if (pos.x >= w || pos.x <= 0) vel.x = -vel.x;
-        if (pos.y >= h || pos.y <= 0) vel.y = -vel.y;
+        if (physicsWorldPtr && b2Body_IsValid(physicsBody)) {
+            syncFromPhysics();
+            if (pos.x >= w || pos.x <= 0) {
+                vel.x = -vel.x;
+                physicsWorldPtr->setLinearVelocity(physicsBody, vel.x * FRAME_RATE, vel.y * FRAME_RATE);
+            }
+            if (pos.y >= h || pos.y <= 0) {
+                vel.y = -vel.y;
+                physicsWorldPtr->setLinearVelocity(physicsBody, vel.x * FRAME_RATE, vel.y * FRAME_RATE);
+            }
+        } else {
+            pos.x += vel.x;
+            pos.y += vel.y;
+            if (pos.x >= w || pos.x <= 0) vel.x = -vel.x;
+            if (pos.y >= h || pos.y <= 0) vel.y = -vel.y;
+        }
     }
 }
 

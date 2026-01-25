@@ -1,5 +1,6 @@
 
 #define FRAME_RATE 60
+#define PIXELS_PER_METER 50.0f
 
 #define GRAVITATE_BODIES true
 

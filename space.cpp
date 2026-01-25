@@ -26,12 +26,12 @@ void Space::init(int difficulty){
     //Body(float x, float y, float width, float height, GameColor color, bool filled);
     int max_size = MAX_BODY_SIZE;
     int min_size = MIN_BODY_SIZE;
-    float width, height;
+    float width = min_size, height = min_size;
     Point pos;
     for (int i=0; i < body_count; i++){
-        pos = getStartPos(width, height);
         width = min_size + rand()%max_size;
         height = min_size + rand()%max_size;
+        pos = getStartPos(width, height);
 
         bodies[i] = new Body(
             pos.x, pos.y,
@@ -110,9 +110,9 @@ void Space::draw(void){
     for (int i=body_count-1; i >=0 ; i--)
         bodies[i]->draw();
 
-    for (int i=0; i < loots.size() ; i++)
-        loots[i].draw();
+    for (auto& loot : loots)
+        loot.draw();
 
-    for (int i=0; i < duders.size() ; i++)
-        duders[i].draw();
+    for (auto& duder : duders)
+        duder.draw();
 }

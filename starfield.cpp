@@ -52,13 +52,13 @@ void Starfield::init(int w, int h){
 
 
 void Starfield::update(void){
-    for(int i = 0; i < stars.size(); i++){
-        stars[i].update(window_width, window_height);
+    for(auto& star : stars){
+        star.update(window_width, window_height);
     }
 }
 
 void Starfield::draw(void){
-    for(int i = 0; i < stars.size(); i++){
-        stars[i].draw();
+    for(auto& star : stars){
+        star.draw();
     }
 }

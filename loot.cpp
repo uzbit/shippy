@@ -5,10 +5,15 @@
 #include "object.h"
 #include "loot.h"
 #include "geom.h"
+#include "physics_world.h"
 
 
 Loot::Loot(float x, float y, float width, float height, GameColor color, LootType type)
 :Object(x, y, width, height), color(color), type(type){
+}
+
+void Loot::initPhysics(PhysicsWorld& world) {
+    physicsBody = world.createBody(this, PhysicsBodyType::SENSOR, 0.0f, 0.0f, 0.0f);
 }
 
 void applyRot(Point *p, float theta){
@@ -30,7 +35,7 @@ void Loot::draw(void){
             draw_line(rect.tl.x, rect.tl.y, rect.tl.x-4, rect.tl.y-4, color, 3);
             draw_line(rect.tl.x-4, rect.tl.y-4, rect.tl.x-10, rect.tl.y-4, color, 3);
             break;
-        case BOOST:
+        case BOOST: {
             Point p1, p2, p3;
             float d = 0.5*width2;
             float deg2rad = M_PI/180;
@@ -58,6 +63,9 @@ void Loot::draw(void){
                 draw_line(pos.x + p2.x, pos.y + p2.y,
                          pos.x + p3.x, pos.y + p3.y, color, 4);
             }
+            break;
+        }
+        case NUM_LOOT:
             break;
     }
 }

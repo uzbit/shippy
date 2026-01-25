@@ -5,6 +5,8 @@
 #include "object.h"
 #include "collision.h"
 
+class PhysicsWorld;
+
 enum LootType{
     FUEL,
     BOOST,
@@ -19,6 +21,7 @@ class Loot : public Object{
     ~Loot(){}
 
     void draw(void);
+    void initPhysics(PhysicsWorld& world) override;
 
     float value;
     GameColor color;

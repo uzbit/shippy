@@ -5,6 +5,7 @@
 #include <SDL3_ttf/SDL_ttf.h>
 #include <SDL3_mixer/SDL_mixer.h>
 #include <vector>
+#include <deque>
 #include <set>
 #include "ship.h"
 #include "loot.h"
@@ -12,6 +13,7 @@
 #include "biases.h"
 #include "duder.h"
 #include "starfield.h"
+#include "physics_world.h"
 
 using namespace std;
 
@@ -40,13 +42,13 @@ class Game{
     void update_space(void);
     int get_space_index(void);
     void draw_info(void);
-    void collide_ship_bodies(void);
-    void collide_ship_loot(void);
-    void collide_ship_duder(void);
-    void collide_duder_bodies(void);
     void draw_duder_bias(Duder *duder);
     void apply_loot(Loot *loot);
     void handle_input(void);
+    void initSpacePhysics(Space& space);
+    void enableSpacePhysics(Space& space);
+    void disableSpacePhysics(Space& space);
+    void processCollisions(void);
 
     bool done;
     SDL_Window* window;
@@ -58,15 +60,17 @@ class Game{
     SDL_Texture* buffer;
 
     Ship *ship; // make multiplayer
-    vector<Space> spaces;
+    deque<Space> spaces;
     int coordx, coordy;
     int space_index;
+    int prev_space_index;
     Biases biases;
     set<string> biases_groked;
     Starfield starfield;
     int window_width, window_height;
     bool redraw;
     Uint64 last_frame_time;
+    PhysicsWorld physicsWorld;
 
 };
 

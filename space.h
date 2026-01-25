@@ -2,6 +2,7 @@
 #define _SPACE_H_
 
 #include <vector>
+#include <list>
 
 #include "body.h"
 #include "loot.h"
@@ -24,8 +25,8 @@ class Space {
     int body_count;
     int coordx, coordy;
     int window_width, window_height;
-    vector<Loot> loots;
-    vector<Duder> duders;
+    list<Loot> loots;
+    list<Duder> duders;
     bool gravitate_bodies;
 
 };
