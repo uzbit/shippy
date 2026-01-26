@@ -9,6 +9,7 @@
 #include "duder.h"
 #include "geom.h"
 #include "asteroid.h"
+#include "cuzer.h"
 
 using namespace std;
 
@@ -26,10 +27,12 @@ struct SpaceTraits {
     int numBoost;         // Number of boost pickups
     int numDuders;        // Number of duders
     int numAsteroids;     // Number of asteroids
+    int numCuzers;        // Number of cuzer enemies
     int numGravityWells;  // Number of gravity well bodies
     int trippyLevel;      // 0=none, 1+=intensity of color cycling
     int tracerLength;     // 0=none, 1-10 = trail length (higher = longer trails)
     float asteroidSpeed;  // Base asteroid speed multiplier
+    float cuzerSpeed;     // Base cuzer speed multiplier
     ColorTheme theme;     // Color palette for the space
 };
 
@@ -51,6 +54,7 @@ class Space {
     list<Loot> loots;
     list<Duder> duders;
     list<Asteroid> asteroids;
+    list<Cuzer> cuzers;
     bool gravitate_bodies;
     SpaceTraits traits;
 

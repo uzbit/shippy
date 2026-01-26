@@ -37,6 +37,16 @@ SpaceTraits Space::generateTraits(int coordx, int coordy, int difficulty) {
         t.numAsteroids = 0;
     }
 
+    // Cuzers: appear at coordy > 1, 0-3 count
+    if (coordy > 1) {
+        t.numCuzers = rand() % 4;
+    } else {
+        t.numCuzers = 0;
+    }
+
+    // Cuzer speed multiplier: 1.0 base, increases with distance
+    t.cuzerSpeed = 1.0f + (distance * 0.08f);
+
     // Gravity wells: 0-2 chance, higher at distance, not at Earth level (coordy=0)
     if (coordy != 0) {
         int gravityChance = std::min(30, 5 + distance * 3);  // 5-30% chance
@@ -219,6 +229,31 @@ void Space::init(int difficulty){
 
         asteroids.push_back(asteroid);
     }
+
+    // Create cuzers based on traits
+    for (int i = 0; i < traits.numCuzers; i++) {
+        // Size distribution: 40% small, 40% medium, 20% large
+        CuzerSize sz;
+        int sizeRoll = rand() % 100;
+        if (sizeRoll < 40) {
+            sz = CuzerSize::SMALL;
+        } else if (sizeRoll < 80) {
+            sz = CuzerSize::MEDIUM;
+        } else {
+            sz = CuzerSize::LARGE;
+        }
+
+        pos = getStartPos(100, 100);
+        Cuzer cuzer(pos.x, pos.y, sz);
+
+        // Apply cuzer speed multiplier from traits
+        float angle = (rand() % 360) * M_PI / 180.0f;
+        float speed = (2.0f + (rand() % 300) / 10.0f) * traits.cuzerSpeed;
+        cuzer.vel.x = cos(angle) * speed;
+        cuzer.vel.y = sin(angle) * speed;
+
+        cuzers.push_back(cuzer);
+    }
 }
 
 void Space::draw(void){
@@ -233,4 +268,7 @@ void Space::draw(void){
 
     for (auto& asteroid : asteroids)
         asteroid.draw();
+
+    for (auto& cuzer : cuzers)
+        cuzer.draw();
 }

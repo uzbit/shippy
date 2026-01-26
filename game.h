@@ -16,6 +16,7 @@
 #include "physics_world.h"
 #include "projectile.h"
 #include "asteroid.h"
+#include "cuzer.h"
 
 using namespace std;
 
@@ -55,6 +56,7 @@ class Game{
     void fireProjectile(void);
     void updateProjectiles(void);
     void updateAsteroids(void);
+    void updateCuzers(void);
     void spawnChildAsteroids(Asteroid& parent);
 
     bool done;

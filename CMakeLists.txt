@@ -33,6 +33,7 @@ set(SOURCES
     physics_world.cpp
     projectile.cpp
     asteroid.cpp
+    cuzer.cpp
 )
 
 add_executable(shippy ${SOURCES})

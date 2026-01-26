@@ -243,6 +243,7 @@ void Game::update_game(void){
     ship->update();
     updateProjectiles();
     updateAsteroids();
+    updateCuzers();
     processCollisions();
     update_space();
 }
@@ -474,6 +475,55 @@ void Game::updateAsteroids(void) {
     }
 }
 
+void Game::updateCuzers(void) {
+    if (space_index < 0) return;
+
+    Space& space = spaces[space_index];
+
+    // Update all cuzers
+    for (auto& cuzer : space.cuzers) {
+        if (!cuzer.isDestroyed()) {
+            cuzer.update();
+
+            // Wrap cuzers around screen edges
+            if (cuzer.pos.x < -cuzer.getRadius()) {
+                cuzer.pos.x = window_width + cuzer.getRadius();
+                if (b2Body_IsValid(cuzer.physicsBody)) {
+                    physicsWorld.setTransform(cuzer.physicsBody, cuzer.pos.x, cuzer.pos.y, cuzer.angle);
+                }
+            }
+            if (cuzer.pos.x > window_width + cuzer.getRadius()) {
+                cuzer.pos.x = -cuzer.getRadius();
+                if (b2Body_IsValid(cuzer.physicsBody)) {
+                    physicsWorld.setTransform(cuzer.physicsBody, cuzer.pos.x, cuzer.pos.y, cuzer.angle);
+                }
+            }
+            if (cuzer.pos.y < -cuzer.getRadius()) {
+                cuzer.pos.y = window_height + cuzer.getRadius();
+                if (b2Body_IsValid(cuzer.physicsBody)) {
+                    physicsWorld.setTransform(cuzer.physicsBody, cuzer.pos.x, cuzer.pos.y, cuzer.angle);
+                }
+            }
+            if (cuzer.pos.y > window_height + cuzer.getRadius()) {
+                cuzer.pos.y = -cuzer.getRadius();
+                if (b2Body_IsValid(cuzer.physicsBody)) {
+                    physicsWorld.setTransform(cuzer.physicsBody, cuzer.pos.x, cuzer.pos.y, cuzer.angle);
+                }
+            }
+        }
+    }
+
+    // Remove destroyed cuzers
+    for (auto it = space.cuzers.begin(); it != space.cuzers.end(); ) {
+        if (it->isDestroyed()) {
+            it->destroyPhysics(physicsWorld);
+            it = space.cuzers.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
 void Game::spawnChildAsteroids(Asteroid& parent) {
     if (space_index < 0) return;
 
@@ -563,6 +613,9 @@ void Game::initSpacePhysics(Space& space) {
     for (auto& asteroid : space.asteroids) {
         asteroid.initPhysics(physicsWorld);
     }
+    for (auto& cuzer : space.cuzers) {
+        cuzer.initPhysics(physicsWorld);
+    }
 }
 
 void Game::enableSpacePhysics(Space& space) {
@@ -589,6 +642,14 @@ void Game::enableSpacePhysics(Space& space) {
             }
         }
     }
+    for (auto& cuzer : space.cuzers) {
+        if (!cuzer.isDestroyed()) {
+            physicsWorld.enableBody(cuzer.physicsBody);
+            if (b2Body_IsValid(cuzer.physicsBody)) {
+                physicsWorld.setLinearVelocity(cuzer.physicsBody, cuzer.vel.x, cuzer.vel.y);
+            }
+        }
+    }
 }
 
 void Game::disableSpacePhysics(Space& space) {
@@ -604,6 +665,9 @@ void Game::disableSpacePhysics(Space& space) {
     for (auto& asteroid : space.asteroids) {
         physicsWorld.disableBody(asteroid.physicsBody);
     }
+    for (auto& cuzer : space.cuzers) {
+        physicsWorld.disableBody(cuzer.physicsBody);
+    }
 }
 
 void Game::processCollisions(void) {
@@ -612,6 +676,7 @@ void Game::processCollisions(void) {
     // Collect items to remove (defer removal until after processing all events)
     vector<Loot*> lootsToRemove;
     vector<Asteroid*> asteroidsToDestroy;
+    vector<Cuzer*> cuzersToDestroy;
     vector<Projectile*> projectilesToDestroy;
 
     // SENSOR events for loot pickup (sensors don't generate contact events)
@@ -687,6 +752,9 @@ void Game::processCollisions(void) {
         Projectile* projectileObj = dynamic_cast<Projectile*>(objA);
         if (!projectileObj) projectileObj = dynamic_cast<Projectile*>(objB);
 
+        Cuzer* cuzerObj = dynamic_cast<Cuzer*>(objA);
+        if (!cuzerObj) cuzerObj = dynamic_cast<Cuzer*>(objB);
+
         if (shipObj && duderObj && !duderObj->is_killed) {
             auto it = std::next(biases.biases.begin(), duderObj->random_val % biases.biases.size());
             duderObj->bias = &(*it);
@@ -757,6 +825,44 @@ void Game::processCollisions(void) {
             if (ship->fuel < 0) ship->fuel = 0;
         }
 
+        // Projectile-cuzer collision: hit cuzer and destroy projectile
+        // Only process if projectile is in current space
+        if (projectileObj && cuzerObj && !cuzerObj->isDestroyed() && !projectileObj->isExpired()
+            && projectileObj->coordx == coordx && projectileObj->coordy == coordy) {
+            bool cuzerMarked = false;
+            for (Cuzer* c : cuzersToDestroy) {
+                if (c == cuzerObj) { cuzerMarked = true; break; }
+            }
+            bool projectileMarked = false;
+            for (Projectile* p : projectilesToDestroy) {
+                if (p == projectileObj) { projectileMarked = true; break; }
+            }
+
+            if (!cuzerMarked) {
+                // takeHit() returns true if cuzer is destroyed
+                if (cuzerObj->takeHit()) {
+                    cuzersToDestroy.push_back(cuzerObj);
+                }
+            }
+            if (!projectileMarked) {
+                projectileObj->expired = true;
+                projectilesToDestroy.push_back(projectileObj);
+            }
+        }
+
+        // Ship-cuzer collision: damage ship (lose fuel)
+        if (shipObj && cuzerObj && !cuzerObj->isDestroyed()) {
+            // Lose fuel proportional to cuzer size
+            float damage = 100.0f;
+            switch (cuzerObj->getSize()) {
+                case CuzerSize::SMALL: damage = 40.0f; break;
+                case CuzerSize::MEDIUM: damage = 100.0f; break;
+                case CuzerSize::LARGE: damage = 200.0f; break;
+            }
+            ship->fuel -= damage;
+            if (ship->fuel < 0) ship->fuel = 0;
+        }
+
         // Duder-body collisions are handled automatically by Box2D physics
         // with restitution = 1.0 for proper bouncing
     }
@@ -779,6 +885,17 @@ void Game::processCollisions(void) {
             if (&(*it) == asteroidObj) {
                 asteroidObj->destroyPhysics(physicsWorld);
                 curr_space->asteroids.erase(it);
+                break;
+            }
+        }
+    }
+
+    // Remove destroyed cuzers
+    for (Cuzer* cuzerObj : cuzersToDestroy) {
+        for (auto it = curr_space->cuzers.begin(); it != curr_space->cuzers.end(); ++it) {
+            if (&(*it) == cuzerObj) {
+                cuzerObj->destroyPhysics(physicsWorld);
+                curr_space->cuzers.erase(it);
                 break;
             }
         }
