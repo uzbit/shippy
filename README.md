@@ -42,4 +42,4 @@ make
 
 ## What's out there?
 
-![alt text](https://github.com/uzbit/shippy/blob/master/data/screen2.png)
+![alt text](https://github.com/uzbit/shippy/blob/feat_2.0/data/screen2.png)
