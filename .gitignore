@@ -2,3 +2,15 @@ build/
 shippy
 core
 .vscode
+.DS_Store
+*.swp
+
+# Android
+android/.gradle/
+android/.idea/
+android/app/.cxx/
+android/app/build/
+android/local.properties
+android/SDL3-src/
+android/app/src/main/assets/data/
+android/gradle/wrapper/gradle-wrapper.jar

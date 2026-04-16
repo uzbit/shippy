@@ -5,8 +5,9 @@
 #include <SDL3_ttf/SDL_ttf.h>
 #include <SDL3_mixer/SDL_mixer.h>
 #include <vector>
-#include <deque>
+#include <list>
 #include <set>
+#include <map>
 #include "ship.h"
 #include "loot.h"
 #include "space.h"
@@ -17,9 +18,15 @@
 #include "projectile.h"
 #include "asteroid.h"
 #include "cuzer.h"
+#include "touch_input.h"
 
 using namespace std;
 
+enum GameState {
+    STATE_MENU,
+    STATE_PLAYING,
+    STATE_PAUSED
+};
 
 class Game{
 
@@ -29,28 +36,32 @@ class Game{
 
     void init_graphics(void);
     void init_game(void);
-    void loop(void);
     void abort(const char* message);
     void shutdown(void);
+
+    SDL_AppResult handle_event(const SDL_Event& event);
+    SDL_AppResult iterate(void);
 
     int difficulty;
     bool music_on;
     float fullscreen;
 
     private:
-    void add_space(int coordx, int coordy);
-    void adjust_ship_position(void);
+    // Core update
     void update_graphics(void);
     void update_game(void);
-    void update_space(void);
-    int get_space_index(void);
     void draw_info(void);
+    void handle_input(void);
+
+    // Chunk management
+    void update_chunks(void);
+    void load_chunk(int cx, int cy);
+    void unload_chunk(int cx, int cy);
+    SpaceTraits& get_chunk_traits(int cx, int cy);
+
+    // Gameplay
     void draw_duder_bias(Duder *duder);
     void apply_loot(Loot *loot);
-    void handle_input(void);
-    void initSpacePhysics(Space& space);
-    void enableSpacePhysics(Space& space);
-    void disableSpacePhysics(Space& space);
     void processCollisions(void);
     void applyGravityWells(void);
     void fireProjectile(void);
@@ -58,6 +69,23 @@ class Game{
     void updateAsteroids(void);
     void updateCuzers(void);
     void spawnChildAsteroids(Asteroid& parent);
+
+    // Camera
+    void update_camera(void);
+
+    // Menu system
+    void draw_menu(void);
+    void draw_pause(void);
+    void handle_menu_event(const SDL_Event& event);
+    void handle_pause_event(const SDL_Event& event);
+    void draw_text(const char* text, float x, float y, SDL_Color color, bool center = false);
+    void draw_text_scaled(const char* text, float x, float y, SDL_Color color, float scale, bool center = false);
+
+    GameState state;
+    int menu_selection;
+    int pause_selection;
+    SDL_FRect menu_rects[3];
+    SDL_FRect pause_rects[3];
 
     bool done;
     SDL_Window* window;
@@ -67,25 +95,34 @@ class Game{
     MIX_Audio* music_audio;
     MIX_Track* music_track;
     SDL_Texture* buffer;
-    SDL_Texture* trailBuffer;  // Persistent buffer for tracer effect
+    SDL_Texture* trailBuffer;
 
-    Ship *ship; // make multiplayer
-    deque<Space> spaces;
-    int coordx, coordy;
-    int space_index;
-    int prev_space_index;
+    // World
+    Ship *ship;
+    PhysicsWorld physicsWorld;
+    map<pair<int,int>, Chunk> loaded_chunks;
+    list<Body*> world_bodies;
+    list<Asteroid> world_asteroids;
+    list<Cuzer> world_cuzers;
+    list<Loot> world_loots;
+    list<Duder> world_duders;
+    list<Projectile> projectiles;
+    int chunk_w, chunk_h;  // Chunk dimensions (set to window_width/height)
+
     Biases biases;
     set<string> biases_groked;
     Starfield starfield;
     int window_width, window_height;
-    bool redraw;
     Uint64 last_frame_time;
-    PhysicsWorld physicsWorld;
-    list<Projectile> projectiles;
     Uint64 lastFireTime;
-    Uint64 fireRate;  // Milliseconds between shots
+    Uint64 fireRate;
+    TouchInput touchInput;
 
+    // Camera state
+    float camera_x, camera_y;
+    float camera_zoom;
+    float camera_target_zoom;
+    float camera_target_x, camera_target_y;
 };
-
 
 #endif

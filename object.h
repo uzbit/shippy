@@ -32,6 +32,7 @@ class Object{
     Rect rect;
     float width, height;
     float width2, height2;
+    int chunk_cx, chunk_cy;  // Which chunk this entity belongs to
     map<Object *, Collision> prev_collision_map;
     b2BodyId physicsBody;
 };

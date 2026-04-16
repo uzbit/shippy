@@ -3,7 +3,6 @@
 #define _SHIP_H_
 
 #include "geom.h"
-#include "space.h"
 #include "object.h"
 
 class PhysicsWorld;
@@ -23,7 +22,6 @@ class Ship : public Object{
     Ship(float x, float y, float fuel, float mass);
     ~Ship(){};
 
-    void gravitate_bodies(Space &space);
     void update(void);
     void rotate(float scale);
     void thrust(float scale);

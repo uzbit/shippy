@@ -51,19 +51,9 @@ void Duder::update(int w, int h){
     if (!is_killed){
         if (physicsWorldPtr && b2Body_IsValid(physicsBody)) {
             syncFromPhysics();
-            if (pos.x >= w || pos.x <= 0) {
-                vel.x = -vel.x;
-                physicsWorldPtr->setLinearVelocity(physicsBody, vel.x * FRAME_RATE, vel.y * FRAME_RATE);
-            }
-            if (pos.y >= h || pos.y <= 0) {
-                vel.y = -vel.y;
-                physicsWorldPtr->setLinearVelocity(physicsBody, vel.x * FRAME_RATE, vel.y * FRAME_RATE);
-            }
         } else {
             pos.x += vel.x;
             pos.y += vel.y;
-            if (pos.x >= w || pos.x <= 0) vel.x = -vel.x;
-            if (pos.y >= h || pos.y <= 0) vel.y = -vel.y;
         }
     }
 }

@@ -12,7 +12,7 @@ class Body : public Object{
     public:
     Body(){}
     Body(float x, float y, float width, float height, GameColor color, bool filled);
-    ~Body(){}
+    ~Body();
 
     void draw(void);
     void initPhysics(PhysicsWorld& world) override;

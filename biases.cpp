@@ -1,25 +1,21 @@
 
-#include <iostream>
+#include <sstream>
 #include "biases.h"
+#include "platform.h"
 
 
 void Biases::load(void){
+    std::string content = read_text_asset(BIASES_FILE);
+    std::istringstream stream(content);
+    std::string line, key, value;
     int pos;
-    ifstream file;
-    string line, key, value;
-    file.open(BIASES_FILE, ios::in);
-    if (file.is_open()){
-        while (getline(file, line)){
-            if (line.size() <= 1) continue;
-            pos = line.find('|');
-            key = line.substr(0, pos);
-            key = key.substr(0, key.find_last_not_of(" ") + 1);
 
-            value = line.substr(pos + 1, line.size());
-            //value = value.substr(value.find_first_not_of(" "), value.size());
-
-            biases[key] = value;
-        }
-        file.close();
-    }    
+    while (std::getline(stream, line)){
+        if (line.size() <= 1) continue;
+        pos = line.find('|');
+        key = line.substr(0, pos);
+        key = key.substr(0, key.find_last_not_of(" ") + 1);
+        value = line.substr(pos + 1, line.size());
+        biases[key] = value;
+    }
 }

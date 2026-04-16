@@ -15,31 +15,30 @@ Body::Body(float x, float y, float width, float height, GameColor color, bool fi
     isGravityWell = false;
 }
 
+Body::~Body() {
+}
+
 void Body::initPhysics(PhysicsWorld& world) {
     physicsBody = world.createBody(this, PhysicsBodyType::STATIC, 0.0f, 0.3f, 0.1f);
 }
 
 void Body::draw(void){
     if (isGravityWell) {
-        // Draw gravity well with a purple/blue swirl effect
         float cx = pos.x;
         float cy = pos.y;
         float maxRadius = (width2 + height2) / 2;
 
-        // Draw multiple rings with decreasing opacity for "swirl" effect
         for (int i = 5; i >= 1; i--) {
             float radius = maxRadius * (i / 5.0f);
-            // Purple to blue gradient
             float t = i / 5.0f;
             GameColor ringColor = map_rgb(
-                (int)(100 + 80 * t),   // R: purple component
-                (int)(20 + 30 * t),     // G: dark
-                (int)(180 + 75 * t)    // B: blue/purple
+                (int)(100 + 80 * t),
+                (int)(20 + 30 * t),
+                (int)(180 + 75 * t)
             );
             draw_ellipse(cx, cy, radius, radius, ringColor, 2.0f + i);
         }
 
-        // Draw center core
         GameColor coreColor = map_rgb(50, 0, 100);
         draw_filled_ellipse(cx, cy, maxRadius * 0.2f, maxRadius * 0.2f, coreColor);
     } else if (!filled){
@@ -54,4 +53,3 @@ void Body::draw(void){
         );
     }
 }
-

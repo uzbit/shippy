@@ -24,6 +24,16 @@ extern int g_trippyLevel;     // 0=none, 1+=intensity of color cycling
 extern int g_colorTheme;      // ColorTheme as int for cross-file compatibility
 extern int g_tracerLength;    // 0=none, 1-10 = trail length
 
+// Camera state (set by Game::update_camera)
+extern float g_camera_x, g_camera_y; // Camera center in world coords
+extern float g_camera_zoom;          // 1.0 = normal
+extern float g_screen_cx, g_screen_cy; // Half screen dimensions
+
+// Transform world coordinates to screen coordinates
+inline float cam_wx(float wx) { return (wx - g_camera_x) * g_camera_zoom + g_screen_cx; }
+inline float cam_wy(float wy) { return (wy - g_camera_y) * g_camera_zoom + g_screen_cy; }
+inline float cam_s(float s) { return s * g_camera_zoom; }
+
 // RGB to HSV conversion
 inline void rgb_to_hsv(float r, float g, float b, float& h, float& s, float& v) {
     float maxc = std::max({r, g, b});
@@ -149,7 +159,7 @@ inline void set_draw_color(const GameColor& color) {
 // Draw a filled rectangle
 inline void draw_filled_rect(float x1, float y1, float x2, float y2, const GameColor& color) {
     set_draw_color(color);
-    SDL_FRect rect = {x1, y1, x2 - x1, y2 - y1};
+    SDL_FRect rect = {cam_wx(x1), cam_wy(y1), cam_s(x2 - x1), cam_s(y2 - y1)};
     SDL_RenderFillRect(g_renderer, &rect);
 }
 
@@ -172,22 +182,26 @@ inline void draw_line(float x1, float y1, float x2, float y2, const GameColor& c
     // Transform color for theme/trippy effects
     GameColor tc = transform_color(color);
 
-    // Create 4 vertices forming a quad
+    // Create 4 vertices forming a quad (camera-transformed)
+    float sx1 = cam_wx(x1), sy1 = cam_wy(y1);
+    float sx2 = cam_wx(x2), sy2 = cam_wy(y2);
+    float shx = hx * g_camera_zoom, shy = hy * g_camera_zoom;
+
     SDL_Vertex vertices[4];
-    vertices[0].position.x = x1 + hx;
-    vertices[0].position.y = y1 + hy;
+    vertices[0].position.x = sx1 + shx;
+    vertices[0].position.y = sy1 + shy;
     vertices[0].color = tc;
 
-    vertices[1].position.x = x1 - hx;
-    vertices[1].position.y = y1 - hy;
+    vertices[1].position.x = sx1 - shx;
+    vertices[1].position.y = sy1 - shy;
     vertices[1].color = tc;
 
-    vertices[2].position.x = x2 - hx;
-    vertices[2].position.y = y2 - hy;
+    vertices[2].position.x = sx2 - shx;
+    vertices[2].position.y = sy2 - shy;
     vertices[2].color = tc;
 
-    vertices[3].position.x = x2 + hx;
-    vertices[3].position.y = y2 + hy;
+    vertices[3].position.x = sx2 + shx;
+    vertices[3].position.y = sy2 + shy;
     vertices[3].color = tc;
 
     // Two triangles: 0-1-2 and 0-2-3
@@ -201,16 +215,16 @@ inline void draw_filled_triangle(float x1, float y1, float x2, float y2, float x
     GameColor tc = transform_color(color);
     SDL_Vertex vertices[3];
 
-    vertices[0].position.x = x1;
-    vertices[0].position.y = y1;
+    vertices[0].position.x = cam_wx(x1);
+    vertices[0].position.y = cam_wy(y1);
     vertices[0].color = tc;
 
-    vertices[1].position.x = x2;
-    vertices[1].position.y = y2;
+    vertices[1].position.x = cam_wx(x2);
+    vertices[1].position.y = cam_wy(y2);
     vertices[1].color = tc;
 
-    vertices[2].position.x = x3;
-    vertices[2].position.y = y3;
+    vertices[2].position.x = cam_wx(x3);
+    vertices[2].position.y = cam_wy(y3);
     vertices[2].color = tc;
 
     SDL_RenderGeometry(g_renderer, NULL, vertices, 3, NULL, 0);
@@ -222,16 +236,19 @@ inline void draw_filled_ellipse(float cx, float cy, float rx, float ry, const Ga
     const int segments = 32;
     SDL_Vertex vertices[segments + 2];
 
+    float scx = cam_wx(cx), scy = cam_wy(cy);
+    float srx = cam_s(rx), sry = cam_s(ry);
+
     // Center vertex
-    vertices[0].position.x = cx;
-    vertices[0].position.y = cy;
+    vertices[0].position.x = scx;
+    vertices[0].position.y = scy;
     vertices[0].color = tc;
 
     // Circle vertices
     for (int i = 0; i <= segments; i++) {
         float angle = (float)i * 2.0f * M_PI / (float)segments;
-        vertices[i + 1].position.x = cx + rx * cosf(angle);
-        vertices[i + 1].position.y = cy + ry * sinf(angle);
+        vertices[i + 1].position.x = scx + srx * cosf(angle);
+        vertices[i + 1].position.y = scy + sry * sinf(angle);
         vertices[i + 1].color = tc;
     }
 
@@ -251,14 +268,15 @@ inline void draw_ellipse(float cx, float cy, float rx, float ry, const GameColor
     GameColor tc = transform_color(color);
     const int segments = 32;
 
-    // Inner and outer radii
-    float half_t = thickness * 0.5f;
-    float rx_outer = rx + half_t;
-    float ry_outer = ry + half_t;
-    float rx_inner = rx - half_t;
-    float ry_inner = ry - half_t;
+    float scx = cam_wx(cx), scy = cam_wy(cy);
 
-    // Clamp inner radii to avoid negative values
+    // Inner and outer radii (scaled)
+    float half_t = cam_s(thickness) * 0.5f;
+    float rx_outer = cam_s(rx) + half_t;
+    float ry_outer = cam_s(ry) + half_t;
+    float rx_inner = cam_s(rx) - half_t;
+    float ry_inner = cam_s(ry) - half_t;
+
     if (rx_inner < 0) rx_inner = 0;
     if (ry_inner < 0) ry_inner = 0;
 
@@ -269,14 +287,12 @@ inline void draw_ellipse(float cx, float cy, float rx, float ry, const GameColor
         float cos_a = cosf(angle);
         float sin_a = sinf(angle);
 
-        // Outer vertex
-        vertices[i * 2].position.x = cx + rx_outer * cos_a;
-        vertices[i * 2].position.y = cy + ry_outer * sin_a;
+        vertices[i * 2].position.x = scx + rx_outer * cos_a;
+        vertices[i * 2].position.y = scy + ry_outer * sin_a;
         vertices[i * 2].color = tc;
 
-        // Inner vertex
-        vertices[i * 2 + 1].position.x = cx + rx_inner * cos_a;
-        vertices[i * 2 + 1].position.y = cy + ry_inner * sin_a;
+        vertices[i * 2 + 1].position.x = scx + rx_inner * cos_a;
+        vertices[i * 2 + 1].position.y = scy + ry_inner * sin_a;
         vertices[i * 2 + 1].color = tc;
     }
 
@@ -303,11 +319,12 @@ inline void draw_thick_arc(float cx, float cy, float rx, float ry, float start_a
     GameColor tc = transform_color(color);
     const int arc_segments = 8;
 
-    float half_t = thickness * 0.5f;
-    float rx_outer = rx + half_t;
-    float ry_outer = ry + half_t;
-    float rx_inner = rx - half_t;
-    float ry_inner = ry - half_t;
+    float scx = cam_wx(cx), scy = cam_wy(cy);
+    float half_t = cam_s(thickness) * 0.5f;
+    float rx_outer = cam_s(rx) + half_t;
+    float ry_outer = cam_s(ry) + half_t;
+    float rx_inner = cam_s(rx) - half_t;
+    float ry_inner = cam_s(ry) - half_t;
 
     if (rx_inner < 0) rx_inner = 0;
     if (ry_inner < 0) ry_inner = 0;
@@ -318,12 +335,12 @@ inline void draw_thick_arc(float cx, float cy, float rx, float ry, float start_a
         float cos_a = cosf(angle);
         float sin_a = sinf(angle);
 
-        vertices[i * 2].position.x = cx + rx_outer * cos_a;
-        vertices[i * 2].position.y = cy + ry_outer * sin_a;
+        vertices[i * 2].position.x = scx + rx_outer * cos_a;
+        vertices[i * 2].position.y = scy + ry_outer * sin_a;
         vertices[i * 2].color = tc;
 
-        vertices[i * 2 + 1].position.x = cx + rx_inner * cos_a;
-        vertices[i * 2 + 1].position.y = cy + ry_inner * sin_a;
+        vertices[i * 2 + 1].position.x = scx + rx_inner * cos_a;
+        vertices[i * 2 + 1].position.y = scy + ry_inner * sin_a;
         vertices[i * 2 + 1].color = tc;
     }
 
@@ -380,15 +397,15 @@ inline void draw_filled_rounded_rect(float x1, float y1, float x2, float y2, flo
     ry = fminf(ry, h / 2);
 
     // Draw center rectangle
-    SDL_FRect center = {x1 + rx, y1, w - 2 * rx, h};
+    SDL_FRect center = {cam_wx(x1 + rx), cam_wy(y1), cam_s(w - 2 * rx), cam_s(h)};
     SDL_RenderFillRect(g_renderer, &center);
 
     // Draw left rectangle
-    SDL_FRect left = {x1, y1 + ry, rx, h - 2 * ry};
+    SDL_FRect left = {cam_wx(x1), cam_wy(y1 + ry), cam_s(rx), cam_s(h - 2 * ry)};
     SDL_RenderFillRect(g_renderer, &left);
 
     // Draw right rectangle
-    SDL_FRect right = {x2 - rx, y1 + ry, rx, h - 2 * ry};
+    SDL_FRect right = {cam_wx(x2 - rx), cam_wy(y1 + ry), cam_s(rx), cam_s(h - 2 * ry)};
     SDL_RenderFillRect(g_renderer, &right);
 
     // Draw corner circles (filled)

@@ -18,4 +18,4 @@
 #define EARTH_HEIGHT 50
 #define HORIZONTAL_FUEL_CONSUMPTION 2.0
 #define VERTICAL_FUEL_CONSUMPTION 5.0
-#define BIASES_FILE "data/cognative_biases.csv"
+#define BIASES_FILE "cognative_biases.csv"

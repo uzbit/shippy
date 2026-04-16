@@ -1,7 +1,7 @@
 #ifndef _BIASES_H_
 #define _BIASES_H_
 
-#include <fstream>
+#include <string>
 #include <map>
 #include "defines.h"
 

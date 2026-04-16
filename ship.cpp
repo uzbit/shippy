@@ -95,25 +95,6 @@ void Ship::brake(float scale){
     }
 }
 
-void Ship::gravitate_bodies(Space &space){
-    if (!space.gravitate_bodies) return;
-
-    float G = 0.05;
-    float mass, dist, dx, dy;
-    int sign = 1;
-    for (int i = 0; i < space.body_count; i++){
-        if (space.coordy == 0 && i == 0) continue; // already gravitate to Earth
-        Body *b = space.bodies[i];
-        mass = (b->width * b->height) * b->density;
-        dx = b->pos.x - pos.x;
-        dy = b->pos.y - pos.y;
-        dist = sqrt(dx*dx + dy*dy);
-        accel.x += sign * dx * mass * G / (dist*dist*dist);
-        accel.y += sign * dy * mass * G / (dist*dist*dist);
-
-    }
-}
-
 void Ship::update(void){
     if (physicsWorldPtr && b2Body_IsValid(physicsBody)) {
         syncFromPhysics();

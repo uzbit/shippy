@@ -7,7 +7,7 @@
 using namespace std;
 
 Object::Object(float x, float y, float width, float height)
-:width(width), height(height), physicsBody(b2_nullBodyId){
+:width(width), height(height), chunk_cx(0), chunk_cy(0), physicsBody(b2_nullBodyId){
     pos.x = x;
     pos.y = y;
     width2 = width/2;
