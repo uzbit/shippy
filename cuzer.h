@@ -29,6 +29,7 @@ public:
     bool takeHit();  // Returns true if destroyed (HP reaches 0)
     CuzerSize getSize() const { return size; }
     float getRadius() const { return radius; }
+    GameColor getColor() const { return baseColor; }
 
     Point vel;
     float angle;

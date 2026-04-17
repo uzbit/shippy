@@ -49,6 +49,7 @@ class Game{
     private:
     // Core update
     void update_graphics(void);
+    void draw_hud(void);
     void update_game(void);
     void draw_info(void);
     void handle_input(void);
@@ -62,6 +63,10 @@ class Game{
     // Gameplay
     void draw_duder_bias(Duder *duder);
     void apply_loot(Loot *loot);
+    void play_croak(void);
+    void play_impact_sound(Object* obj, GameColor color);
+    void play_wav(int16_t* samples, int num_samples, int sample_rate);
+    void launchDuder(void);
     void processCollisions(void);
     void applyGravityWells(void);
     void fireProjectile(void);
@@ -94,8 +99,23 @@ class Game{
     MIX_Mixer* mixer;
     MIX_Audio* music_audio;
     MIX_Track* music_track;
+    MIX_Track* sfx_track;
+    MIX_Audio* sfx_audio;
+    vector<int16_t> sfx_loop_buffer;
     SDL_Texture* buffer;
     SDL_Texture* trailBuffer;
+
+    // Particles
+    struct Particle {
+        float x, y, vx, vy;
+        float life, max_life;
+        float size;
+        GameColor color;
+    };
+    vector<Particle> particles;
+    void spawnExplosion(float x, float y, float radius, GameColor color, int count);
+    void updateParticles(void);
+    void drawParticles(void);
 
     // World
     Ship *ship;
@@ -116,6 +136,8 @@ class Game{
     Uint64 last_frame_time;
     Uint64 lastFireTime;
     Uint64 fireRate;
+    Uint64 lastFireTapTime;
+    bool fireWasReleased;
     TouchInput touchInput;
 
     // Camera state
@@ -123,6 +145,12 @@ class Game{
     float camera_zoom;
     float camera_target_zoom;
     float camera_target_x, camera_target_y;
+
+    // Loot effect timers (seconds remaining)
+    float trippyTimer;
+    float tracerTimer;
+    float tracerTimerMax;   // total duration for proportional decay
+    int tracerLengthMax;    // initial tracer length at pickup
 };
 
 #endif

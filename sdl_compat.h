@@ -9,6 +9,11 @@
 #define M_PI 3.14159265358979323846
 #endif
 
+// Generic lerp
+inline float lerp(float a, float b, float t) {
+    return a + (b - a) * t;
+}
+
 // Forward declare ColorTheme enum
 enum class ColorTheme;
 
@@ -22,6 +27,8 @@ extern SDL_Renderer* g_renderer;
 extern float g_hueShift;      // Current hue shift in degrees (0-360)
 extern int g_trippyLevel;     // 0=none, 1+=intensity of color cycling
 extern int g_colorTheme;      // ColorTheme as int for cross-file compatibility
+extern int g_colorThemePrev;  // Previous theme for blending during transitions
+extern float g_colorThemeBlend; // 0.0 = prev theme, 1.0 = current theme
 extern int g_tracerLength;    // 0=none, 1-10 = trail length
 
 // Camera state (set by Game::update_camera)
@@ -133,13 +140,23 @@ inline GameColor map_rgb_f(float r, float g, float b) {
     return SDL_FColor{r, g, b, 1.0f};
 }
 
+// Lerp between two colors
+inline GameColor lerp_color(const GameColor& a, const GameColor& b, float t) {
+    return SDL_FColor{ lerp(a.r, b.r, t), lerp(a.g, b.g, t), lerp(a.b, b.b, t), lerp(a.a, b.a, t) };
+}
+
 // Transform a color by applying theme and trippy effects
 inline GameColor transform_color(const GameColor& color) {
     GameColor finalColor = color;
 
-    // Apply theme transformation
-    if (g_colorTheme != 0) {
-        finalColor = apply_theme(finalColor, g_colorTheme);
+    // Apply theme with blend between previous and current
+    if (g_colorThemeBlend >= 1.0f) {
+        if (g_colorTheme != 0)
+            finalColor = apply_theme(color, g_colorTheme);
+    } else {
+        GameColor prev = (g_colorThemePrev != 0) ? apply_theme(color, g_colorThemePrev) : color;
+        GameColor curr = (g_colorTheme != 0) ? apply_theme(color, g_colorTheme) : color;
+        finalColor = lerp_color(prev, curr, g_colorThemeBlend);
     }
 
     // Apply trippy hue shift

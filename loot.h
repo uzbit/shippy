@@ -10,6 +10,7 @@ class PhysicsWorld;
 enum LootType{
     FUEL,
     BOOST,
+    MUSHROOM,
     NUM_LOOT
 };
 

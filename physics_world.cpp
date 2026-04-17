@@ -74,6 +74,7 @@ b2BodyId PhysicsWorld::createBody(Object* obj, PhysicsBodyType type, float densi
     if (type == PhysicsBodyType::DYNAMIC) {
         shapeDef.enableSensorEvents = true;
         shapeDef.enableContactEvents = true;
+        shapeDef.enableHitEvents = true;
     }
 
     if (type == PhysicsBodyType::KINEMATIC) {

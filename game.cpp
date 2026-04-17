@@ -23,7 +23,8 @@ using namespace std;
 Game::Game()
 :done(false), difficulty(1),
  window(nullptr), renderer(nullptr), font(nullptr), mixer(nullptr),
- music_audio(nullptr), music_track(nullptr), buffer(nullptr), trailBuffer(nullptr), lastFireTime(0), fireRate(200),
+ music_audio(nullptr), music_track(nullptr), sfx_track(nullptr), sfx_audio(nullptr),
+ buffer(nullptr), trailBuffer(nullptr), lastFireTime(0), fireRate(200),
  state(STATE_MENU), menu_selection(2), pause_selection(0), ship(nullptr),
  chunk_w(0), chunk_h(0),
  camera_x(0), camera_y(0), camera_zoom(1.0f), camera_target_zoom(1.0f),
@@ -85,6 +86,9 @@ void Game::init_graphics(void){
     mixer = MIX_CreateMixerDevice(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec);
     if (!mixer)
         abort("Failed to create SDL_mixer device");
+
+    // Create SFX track for looping impact sounds
+    sfx_track = MIX_CreateTrack(mixer);
 
     // Create window
 #ifdef SDL_PLATFORM_ANDROID
@@ -172,8 +176,21 @@ void Game::init_game(void){
 
     biases_groked.clear();
     lastFireTime = 0;
+    lastFireTapTime = 0;
+    fireWasReleased = true;
     camera_zoom = 1.0f;
     camera_target_zoom = 1.0f;
+    trippyTimer = 0.0f;
+    tracerTimer = 0.0f;
+    tracerTimerMax = 0.0f;
+    tracerLengthMax = 0;
+    g_trippyLevel = 0;
+    g_tracerLength = 0;
+    g_hueShift = 0.0f;
+    particles.clear();
+    sfx_loop_buffer.clear();
+    if (sfx_track) MIX_StopTrack(sfx_track, 0);
+    if (sfx_audio) { MIX_DestroyAudio(sfx_audio); sfx_audio = nullptr; }
     chunk_w = window_width;
     chunk_h = window_height;
 
@@ -291,6 +308,20 @@ void Game::load_chunk(int cx, int cy) {
         loot.chunk_cy = cy;
         loot.initPhysics(physicsWorld);
     }
+    for (int i = 0; i < traits.numMushroom; i++) {
+        float shroom_value = 1 + rand() % 3;  // trippy level 1-3
+        float shroom_scale = (shroom_value - 1) / 2.0f;
+        float w = 40 + shroom_scale * 30;
+        float h = w * 1.2f;
+        float px = base_x + rand() % chunk_w;
+        float py = base_y + rand() % chunk_h;
+        world_loots.emplace_back(px, py, w, h, map_rgb(180, 50, 220), MUSHROOM);
+        Loot& loot = world_loots.back();
+        loot.value = shroom_value;
+        loot.chunk_cx = cx;
+        loot.chunk_cy = cy;
+        loot.initPhysics(physicsWorld);
+    }
 
     // Spawn duders
     for (int i = 0; i < traits.numDuders; i++) {
@@ -369,7 +400,7 @@ void Game::unload_chunk(int cx, int cy) {
         } else ++eit;
     }
     for (auto eit = world_duders.begin(); eit != world_duders.end(); ) {
-        if (eit->chunk_cx == cx && eit->chunk_cy == cy) {
+        if (eit->chunk_cx == cx && eit->chunk_cy == cy && !eit->is_following) {
             eit->destroyPhysics(physicsWorld);
             eit = world_duders.erase(eit);
         } else ++eit;
@@ -448,13 +479,15 @@ void Game::update_graphics(void){
     for (auto& proj : projectiles)
         proj.draw();
 
+    drawParticles();
+
     for (auto& duder : world_duders)
         draw_duder_bias(&duder);
+}
 
-    // HUD draws without camera
-    save_zoom = g_camera_zoom;
-    save_cx = g_camera_x;
-    save_cy = g_camera_y;
+void Game::draw_hud(void){
+    float save_zoom = g_camera_zoom;
+    float save_cx = g_camera_x, save_cy = g_camera_y;
     g_camera_zoom = 1.0f;
     g_camera_x = g_screen_cx;
     g_camera_y = g_screen_cy;
@@ -470,23 +503,49 @@ void Game::update_graphics(void){
 void Game::update_game(void){
     update_camera();
 
-    // Zone-based visual effects from ship's current chunk
+    // Zone-based color theme from ship's current chunk (with smooth blending)
     int ship_cx = (int)floor(ship->pos.x / chunk_w);
     int ship_cy = (int)floor(ship->pos.y / chunk_h);
     auto key = make_pair(ship_cx, ship_cy);
     if (loaded_chunks.count(key)) {
-        SpaceTraits& traits = loaded_chunks[key].traits;
-        g_trippyLevel = traits.trippyLevel;
-        g_colorTheme = static_cast<int>(traits.theme);
-        g_tracerLength = traits.tracerLength;
-
-        // Increment hue shift for trippy effect (speed based on level)
-        if (g_trippyLevel > 0) {
-            g_hueShift += g_trippyLevel * 2.0f;  // 2-6 degrees per frame
-            if (g_hueShift >= 360.0f) g_hueShift -= 360.0f;
-        } else {
-            g_hueShift = 0.0f;
+        int newTheme = static_cast<int>(loaded_chunks[key].traits.theme);
+        if (newTheme != g_colorTheme) {
+            g_colorThemePrev = g_colorTheme;
+            g_colorTheme = newTheme;
+            g_colorThemeBlend = 0.0f;
         }
+    }
+    if (g_colorThemeBlend < 1.0f) {
+        g_colorThemeBlend += 0.01f;  // ~1.7 second transition at 60fps
+        if (g_colorThemeBlend > 1.0f) g_colorThemeBlend = 1.0f;
+    }
+
+    // Decay loot effect timers
+    float dt = 1.0f / 60.0f;
+    if (trippyTimer > 0.0f) {
+        trippyTimer -= dt;
+        if (trippyTimer <= 0.0f) {
+            trippyTimer = 0.0f;
+            g_trippyLevel = 0;
+        }
+    }
+    if (tracerTimer > 0.0f) {
+        tracerTimer -= dt;
+        if (tracerTimer <= 0.0f) {
+            tracerTimer = 0.0f;
+            g_tracerLength = 0;
+        } else {
+            float ratio = tracerTimer / tracerTimerMax;
+            g_tracerLength = (int)(tracerLengthMax * ratio);
+        }
+    }
+
+    // Increment hue shift for trippy effect (speed based on level)
+    if (g_trippyLevel > 0) {
+        g_hueShift += g_trippyLevel * 2.0f;  // 2-6 degrees per frame
+        if (g_hueShift >= 360.0f) g_hueShift -= 360.0f;
+    } else {
+        g_hueShift = 0.0f;
     }
 
     starfield.update();
@@ -504,7 +563,9 @@ void Game::update_game(void){
 
     // Update duders
     for (auto& duder : world_duders)
-        duder.update(chunk_w, chunk_h);
+        duder.update(chunk_w, chunk_h, ship->pos.x, ship->pos.y, ship->vel.x, ship->vel.y);
+
+    updateParticles();
 
     // Load/unload chunks AFTER physics+collisions to avoid stale pointers
     update_chunks();
@@ -573,6 +634,156 @@ void Game::fireProjectile(void) {
     proj.vel.y += ship->vel.y;
 
     proj.initPhysics(physicsWorld);
+}
+
+void Game::launchDuder(void) {
+    // Find a following duder to launch
+    Duder* toLaunch = nullptr;
+    for (auto& duder : world_duders) {
+        if (duder.is_following && !duder.is_launched && !duder.is_killed) {
+            toLaunch = &duder;
+            break;
+        }
+    }
+    if (!toLaunch) return;
+
+    toLaunch->is_following = false;
+    toLaunch->is_launched = true;
+    toLaunch->launch_life = 3.0f;
+
+    // Launch from ship nose in ship's facing direction
+    float launchSpeed = 10.0f;
+    float noseX = ship->pos.x + cosf(ship->angle) * ship->height2;
+    float noseY = ship->pos.y + sinf(ship->angle) * ship->height2;
+    toLaunch->pos.x = noseX;
+    toLaunch->pos.y = noseY;
+    toLaunch->vel.x = cosf(ship->angle) * launchSpeed + ship->vel.x * 0.2f;
+    toLaunch->vel.y = sinf(ship->angle) * launchSpeed + ship->vel.y * 0.2f;
+
+    if (b2Body_IsValid(toLaunch->physicsBody)) {
+        b2Body_SetTransform(toLaunch->physicsBody,
+            {noseX / PIXELS_PER_METER, noseY / PIXELS_PER_METER},
+            b2Body_GetRotation(toLaunch->physicsBody));
+        physicsWorld.setLinearVelocity(
+            toLaunch->physicsBody,
+            toLaunch->vel.x * FRAME_RATE,
+            toLaunch->vel.y * FRAME_RATE);
+    }
+
+    play_croak();
+}
+
+void Game::play_impact_sound(Object* obj, GameColor color) {
+    int sample_rate = 44100;
+    float obj_size = sqrtf(obj->width2 * obj->width2 + obj->height2 * obj->height2);
+
+    // Get the instantaneous (theme/trippy-transformed) color's HSV
+    GameColor tc = transform_color(color);
+    float hue, sat, val;
+    rgb_to_hsv(tc.r, tc.g, tc.b, hue, sat, val);
+
+    // Hue → pitch (red=low, cyan=mid, blue=high)
+    float freq_base = 150.0f + hue * 600.0f;
+    // Size still influences pitch
+    freq_base *= 1.0f - std::min(0.5f, obj_size * 0.002f);
+
+    // Saturation → harmonic richness (desaturated = pure sine, saturated = gritty)
+    float harmonics = sat * 0.6f;
+
+    // Value/brightness → volume and sustain
+    float volume = 0.2f + val * 0.3f;
+    float decay_rate = 3.0f + (1.0f - val) * 6.0f;  // bright = longer sustain
+
+    // Duration from size + brightness
+    float duration = 0.1f + std::min(0.5f, obj_size * 0.004f + val * 0.1f);
+    int num_samples = (int)(sample_rate * duration);
+
+    // Palette modulation
+    float palette_detune = 0.0f;
+    float palette_noise = 0.05f;
+    switch (g_colorTheme) {
+        case 1: palette_detune = -0.05f; palette_noise = 0.02f; break;  // WARM: slightly flat, clean
+        case 2: palette_detune =  0.05f; palette_noise = 0.03f; break;  // COOL: slightly sharp, clean
+        case 3: palette_detune =  0.0f;  palette_noise = 0.1f;  break;  // NEON: noisy/buzzy
+        case 4: palette_detune =  0.0f;  palette_noise = 0.01f; break;  // MONO: very clean
+    }
+
+    vector<int16_t> buf(num_samples * 2);
+    float phase = 0.0f;
+
+    for (int i = 0; i < num_samples; i++) {
+        float t = (float)i / num_samples;
+        float freq = freq_base * (1.0f + palette_detune);
+
+        // Sharp attack, exponential decay
+        float env = expf(-t * decay_rate);
+        if (t < 0.01f) env *= t / 0.01f;
+
+        float sample = sinf(phase) * 0.5f
+                      + sinf(phase * 2.0f) * 0.2f * harmonics
+                      + sinf(phase * 3.0f) * 0.1f * harmonics
+                      + sinf(phase * 5.0f) * 0.05f * harmonics;
+
+        sample += ((rand() % 1000) / 1000.0f - 0.5f) * palette_noise * env;
+
+        sample *= env * volume;
+        int16_t s = (int16_t)(sample * 32000);
+        buf[i * 2] = s;
+        buf[i * 2 + 1] = s;
+
+        phase += 2.0f * M_PI * freq / sample_rate;
+        if (phase > 2.0f * M_PI) phase -= 2.0f * M_PI;
+    }
+
+    // Append to the loop buffer and rebuild the looping track
+    sfx_loop_buffer.insert(sfx_loop_buffer.end(), buf.begin(), buf.end());
+
+    // Cap the buffer so it doesn't grow forever (~10 seconds of stereo audio)
+    int max_samples = 44100 * 2 * 10;
+    if ((int)sfx_loop_buffer.size() > max_samples) {
+        sfx_loop_buffer.erase(sfx_loop_buffer.begin(),
+                               sfx_loop_buffer.begin() + (sfx_loop_buffer.size() - max_samples));
+    }
+
+    // Rebuild the looping audio from the buffer
+    if (sfx_track) {
+        MIX_StopTrack(sfx_track, 0);
+        if (sfx_audio) { MIX_DestroyAudio(sfx_audio); sfx_audio = nullptr; }
+
+        // Build WAV in memory from the loop buffer
+        int data_size = sfx_loop_buffer.size() * sizeof(int16_t);
+        int wav_size = 44 + data_size;
+        uint8_t* wav = (uint8_t*)SDL_malloc(wav_size);
+        if (wav) {
+            memcpy(wav, "RIFF", 4);
+            *(uint32_t*)(wav + 4) = wav_size - 8;
+            memcpy(wav + 8, "WAVE", 4);
+            memcpy(wav + 12, "fmt ", 4);
+            *(uint32_t*)(wav + 16) = 16;
+            *(uint16_t*)(wav + 20) = 1;
+            *(uint16_t*)(wav + 22) = 2;
+            *(uint32_t*)(wav + 24) = 44100;
+            *(uint32_t*)(wav + 28) = 44100 * 4;
+            *(uint16_t*)(wav + 32) = 4;
+            *(uint16_t*)(wav + 34) = 16;
+            memcpy(wav + 36, "data", 4);
+            *(uint32_t*)(wav + 40) = data_size;
+            memcpy(wav + 44, sfx_loop_buffer.data(), data_size);
+
+            SDL_IOStream* io = SDL_IOFromMem(wav, wav_size);
+            if (io) {
+                sfx_audio = MIX_LoadAudio_IO(mixer, io, true, true);
+                if (sfx_audio) {
+                    MIX_SetTrackAudio(sfx_track, sfx_audio);
+                    SDL_PropertiesID props = SDL_CreateProperties();
+                    SDL_SetNumberProperty(props, MIX_PROP_PLAY_LOOPS_NUMBER, -1);
+                    MIX_PlayTrack(sfx_track, props);
+                    SDL_DestroyProperties(props);
+                }
+            }
+            SDL_free(wav);
+        }
+    }
 }
 
 void Game::updateProjectiles(void) {
@@ -779,13 +990,34 @@ void Game::processCollisions(void) {
         Cuzer* cuzerObj = dynamic_cast<Cuzer*>(objA);
         if (!cuzerObj) cuzerObj = dynamic_cast<Cuzer*>(objB);
 
-        if (shipObj && duderObj && !duderObj->is_killed) {
+        if (shipObj && duderObj && !duderObj->is_killed && !duderObj->is_following && !duderObj->is_launched) {
             auto it = std::next(biases.biases.begin(), duderObj->random_val % biases.biases.size());
             duderObj->bias = &(*it);
-            duderObj->is_killed = true;
-            // Disable physics body so killed duder doesn't collide
-            physicsWorld.disableBody(duderObj->physicsBody);
+            duderObj->encounter_pos = duderObj->pos;
+            duderObj->is_following = true;
             biases_groked.insert(duderObj->bias->first);
+            play_croak();
+        }
+
+        // Launched duder collision: play impact sound based on hit object
+        if (duderObj && duderObj->is_launched) {
+            Object* hitObj = nullptr;
+            if (objA != (Object*)duderObj) hitObj = objA;
+            else hitObj = objB;
+
+            // Don't trigger on ship collision
+            if (!dynamic_cast<Ship*>(hitObj) && hitObj) {
+                // Get the hit object's color
+                GameColor hitColor = map_rgb(255, 255, 255);
+                if (auto* a = dynamic_cast<Asteroid*>(hitObj)) hitColor = a->getColor();
+                else if (auto* c = dynamic_cast<Cuzer*>(hitObj)) hitColor = c->getColor();
+                else if (auto* b = dynamic_cast<Body*>(hitObj)) hitColor = b->color;
+                else if (auto* d = dynamic_cast<Duder*>(hitObj)) hitColor = d->color;
+
+                play_impact_sound(hitObj, hitColor);
+                spawnExplosion(duderObj->pos.x, duderObj->pos.y,
+                               duderObj->width2, duderObj->color, 10);
+            }
         }
 
         // Projectile-asteroid collision: destroy both, spawn children
@@ -803,6 +1035,9 @@ void Game::processCollisions(void) {
             }
 
             if (!asteroidMarked) {
+                spawnExplosion(asteroidObj->pos.x, asteroidObj->pos.y,
+                               asteroidObj->getRadius(), asteroidObj->getColor(),
+                               15 + (int)(asteroidObj->getRadius() * 0.5f));
                 spawnChildAsteroids(*asteroidObj);
                 asteroidObj->destroy();
                 asteroidsToDestroy.push_back(asteroidObj);
@@ -865,7 +1100,15 @@ void Game::processCollisions(void) {
             if (!cuzerMarked) {
                 // takeHit() returns true if cuzer is destroyed
                 if (cuzerObj->takeHit()) {
+                    spawnExplosion(cuzerObj->pos.x, cuzerObj->pos.y,
+                                   cuzerObj->getRadius(), cuzerObj->getColor(),
+                                   20 + (int)(cuzerObj->getRadius() * 0.8f));
                     cuzersToDestroy.push_back(cuzerObj);
+
+                    // Clear the SFX loop when a cuzer is killed by bullets
+                    sfx_loop_buffer.clear();
+                    if (sfx_track) MIX_StopTrack(sfx_track, 0);
+                    if (sfx_audio) { MIX_DestroyAudio(sfx_audio); sfx_audio = nullptr; }
                 }
             }
             if (!projectileMarked) {
@@ -888,6 +1131,37 @@ void Game::processCollisions(void) {
         }
 
         // Duder-body collisions handled by Box2D physics
+    }
+
+    // Hit events: launched duders generate sounds on every bounce/impact
+    for (int i = 0; i < contactEvents.hitCount; i++) {
+        b2ContactHitEvent* hitEvent = contactEvents.hitEvents + i;
+        if (!b2Shape_IsValid(hitEvent->shapeIdA) || !b2Shape_IsValid(hitEvent->shapeIdB))
+            continue;
+
+        Object* objA = (Object*)b2Shape_GetUserData(hitEvent->shapeIdA);
+        Object* objB = (Object*)b2Shape_GetUserData(hitEvent->shapeIdB);
+        if (!objA || !objB) continue;
+
+        Duder* duderObj = dynamic_cast<Duder*>(objA);
+        if (!duderObj) duderObj = dynamic_cast<Duder*>(objB);
+
+        if (duderObj && duderObj->is_launched) {
+            Object* hitObj = (objA != (Object*)duderObj) ? objA : objB;
+            if (!dynamic_cast<Ship*>(hitObj)) {
+                GameColor hitColor = map_rgb(255, 255, 255);
+                if (auto* a = dynamic_cast<Asteroid*>(hitObj)) hitColor = a->getColor();
+                else if (auto* c = dynamic_cast<Cuzer*>(hitObj)) hitColor = c->getColor();
+                else if (auto* b = dynamic_cast<Body*>(hitObj)) hitColor = b->color;
+                else if (auto* d = dynamic_cast<Duder*>(hitObj)) hitColor = d->color;
+
+                play_impact_sound(hitObj, hitColor);
+                spawnExplosion(hitEvent->point.x * PIXELS_PER_METER,
+                               hitEvent->point.y * PIXELS_PER_METER,
+                               5.0f + hitEvent->approachSpeed * 2.0f,
+                               hitColor, 5);
+            }
+        }
     }
 
     // Now safely remove collected loots after all events processed
@@ -938,83 +1212,226 @@ void Game::processCollisions(void) {
 }
 
 void Game::draw_duder_bias(Duder *duder){
-    if (!duder->is_killed) return;
+    if (!duder->is_killed && !duder->is_following) return;
 
-    char buf[500];
-    memset(buf, 0, sizeof(buf));
-    int countword = 0, lastbr = 0, linenum = 0;
-    string txt = duder->bias->second;
-    int maxwords = 7;
-    int tw = 0;
-    float posx, posy = duder->pos.y - 60;
+    // Use encounter position (world coords) converted to screen coords
+    float anchor_x = duder->is_following ? duder->encounter_pos.x : duder->pos.x;
+    float anchor_y = duder->is_following ? duder->encounter_pos.y : duder->pos.y;
+    float sx = cam_wx(anchor_x);
+    float sy = cam_wy(anchor_y);
 
-    SDL_Color sdl_color = {
-        (Uint8)(duder->color.r * 255),
-        (Uint8)(duder->color.g * 255),
-        (Uint8)(duder->color.b * 255),
-        255
+    // Skip if off-screen
+    if (sx < -200 || sx > window_width + 200 || sy < -200 || sy > window_height + 200)
+        return;
+
+    GameColor dc = duder->color;
+    SDL_Color title_color = {255, 255, 255, 255};
+    SDL_Color body_color = {
+        (Uint8)(std::min(1.0f, dc.r * 1.3f) * 255),
+        (Uint8)(std::min(1.0f, dc.g * 1.3f) * 255),
+        (Uint8)(std::min(1.0f, dc.b * 1.3f) * 255), 255
     };
 
-    for (int i=0; i < txt.size(); i++){
-        if (txt[i] == ' '){
-            countword++;
-        }
-        if (countword >= maxwords){
-            lastbr = i;
-            linenum++;
-            countword = 0;
-            if (!tw){
-                // Measure text width
-                int text_w, text_h;
-                TTF_GetStringSize(font, buf, 0, &text_w, &text_h);
-                tw = text_w + 30;
-                posx = duder->pos.x - tw/2;
-                if (posx+tw > window_width) posx = window_width-tw;
-                if (posx < 0) posx = 30;
+    // Split description into lines
+    string txt = duder->bias->second;
+    vector<string> lines;
+    int maxwords = 6;
+    int wordcount = 0;
+    size_t line_start = 0;
+    for (size_t i = 0; i <= txt.size(); i++) {
+        if (i == txt.size() || txt[i] == ' ') {
+            wordcount++;
+            if (wordcount >= maxwords || i == txt.size()) {
+                lines.push_back(txt.substr(line_start, i - line_start));
+                line_start = i + 1;
+                wordcount = 0;
             }
-            // Render text
-            SDL_Surface* surface = TTF_RenderText_Blended(font, buf, 0, sdl_color);
-            if (surface) {
-                SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
-                if (texture) {
-                    SDL_FRect dst = {posx, posy + linenum * 20, (float)surface->w, (float)surface->h};
-                    SDL_RenderTexture(renderer, texture, NULL, &dst);
-                    SDL_DestroyTexture(texture);
-                }
-                SDL_DestroySurface(surface);
-            }
-            memset(buf, 0, sizeof(buf));
         }
-
-        if (i-lastbr < sizeof(buf))
-            buf[i-lastbr] = txt[i];
-        else
-            countword = maxwords + 1;
-    }
-    //draw last line
-    linenum++;
-    SDL_Surface* surface = TTF_RenderText_Blended(font, buf, 0, sdl_color);
-    if (surface) {
-        SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
-        if (texture) {
-            SDL_FRect dst = {posx, posy + linenum * 20, (float)surface->w, (float)surface->h};
-            SDL_RenderTexture(renderer, texture, NULL, &dst);
-            SDL_DestroyTexture(texture);
-        }
-        SDL_DestroySurface(surface);
     }
 
-    snprintf(buf, sizeof(buf), "%s:", duder->bias->first.c_str());
-    surface = TTF_RenderText_Blended(font, buf, 0, sdl_color);
-    if (surface) {
-        SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
-        if (texture) {
-            SDL_FRect dst = {posx, posy, (float)surface->w, (float)surface->h};
-            SDL_RenderTexture(renderer, texture, NULL, &dst);
-            SDL_DestroyTexture(texture);
-        }
-        SDL_DestroySurface(surface);
+    // Measure widths to find the box size
+    int title_w = 0, title_h = 0;
+    TTF_GetStringSize(font, duder->bias->first.c_str(), 0, &title_w, &title_h);
+    float scaled_title_w = title_w * 0.9f;
+
+    float max_line_w = scaled_title_w;
+    for (auto& line : lines) {
+        int lw = 0, lh = 0;
+        TTF_GetStringSize(font, line.c_str(), 0, &lw, &lh);
+        if (lw > max_line_w) max_line_w = lw;
     }
+
+    float padding = 12.0f;
+    float title_line_h = 22.0f;
+    float sep_h = 8.0f;
+    float body_line_h = 18.0f;
+    float box_w = max_line_w + padding * 2;
+    float box_h = padding + title_line_h + sep_h + lines.size() * body_line_h + padding;
+    float box_x = sx - box_w / 2;
+    float box_y = sy - 50 - padding;
+
+    // Draw box background (screen-space — coords already camera-transformed)
+    float save_zoom = g_camera_zoom;
+    float save_cx = g_camera_x, save_cy = g_camera_y;
+    g_camera_zoom = 1.0f;
+    g_camera_x = g_screen_cx;
+    g_camera_y = g_screen_cy;
+
+    GameColor bg = {0.0f, 0.0f, 0.0f, 0.7f};
+    SDL_SetRenderDrawBlendMode(g_renderer, SDL_BLENDMODE_BLEND);
+    draw_filled_rounded_rect(box_x, box_y, box_x + box_w, box_y + box_h,
+                             6, 6, bg);
+
+    // Draw box border in duder color
+    GameColor border = {dc.r, dc.g, dc.b, 0.6f};
+    draw_rounded_rect(box_x, box_y, box_x + box_w, box_y + box_h,
+                      6, 6, border, 1.5f);
+
+    // Draw title
+    float line_y = sy - 50;
+    draw_text_scaled(duder->bias->first.c_str(), sx, line_y, title_color, 0.9f, true);
+    line_y += title_line_h;
+
+    // Separator line
+    float sep_w = max_line_w * 0.6f;
+    GameColor sep_color = {dc.r, dc.g, dc.b, 0.4f};
+    draw_line(sx - sep_w/2, line_y, sx + sep_w/2, line_y, sep_color, 1.0f);
+    line_y += sep_h;
+
+    // Draw body lines
+    for (auto& line : lines) {
+        draw_text(line.c_str(), sx, line_y, body_color, true);
+        line_y += body_line_h;
+    }
+
+    g_camera_zoom = save_zoom;
+    g_camera_x = save_cx;
+    g_camera_y = save_cy;
+}
+
+void Game::spawnExplosion(float x, float y, float radius, GameColor color, int count) {
+    for (int i = 0; i < count; i++) {
+        float angle = (rand() % 3600) / 3600.0f * 2.0f * M_PI;
+        float speed = 1.0f + (rand() % 100) / 20.0f;
+        float life = 0.3f + (rand() % 100) / 100.0f * 0.7f;  // 0.3-1.0s
+        float sz = 2.0f + (rand() % (int)(radius * 0.3f + 1));
+
+        // Vary the color slightly per particle
+        float cr = std::min(1.0f, color.r + ((rand() % 60) - 30) / 255.0f);
+        float cg = std::min(1.0f, color.g + ((rand() % 60) - 30) / 255.0f);
+        float cb = std::min(1.0f, color.b + ((rand() % 60) - 30) / 255.0f);
+
+        particles.push_back({
+            x, y,
+            cosf(angle) * speed, sinf(angle) * speed,
+            life, life,
+            sz,
+            {cr, cg, cb, 1.0f}
+        });
+    }
+}
+
+void Game::updateParticles(void) {
+    for (auto it = particles.begin(); it != particles.end(); ) {
+        it->life -= 1.0f / 60.0f;
+        if (it->life <= 0.0f) {
+            it = particles.erase(it);
+        } else {
+            it->x += it->vx;
+            it->y += it->vy;
+            it->vx *= 0.97f;
+            it->vy *= 0.97f;
+            ++it;
+        }
+    }
+}
+
+void Game::drawParticles(void) {
+    for (auto& p : particles) {
+        float alpha = p.life / p.max_life;
+        float sz = p.size * alpha;
+        GameColor c = {p.color.r, p.color.g, p.color.b, alpha};
+        draw_filled_ellipse(p.x, p.y, sz, sz, c);
+    }
+}
+
+void Game::play_wav(int16_t* samples, int num_samples, int sample_rate) {
+    int data_size = num_samples * 2 * sizeof(int16_t);
+    int wav_size = 44 + data_size;
+    uint8_t* wav = (uint8_t*)SDL_malloc(wav_size);
+    if (!wav) return;
+
+    memcpy(wav, "RIFF", 4);
+    *(uint32_t*)(wav + 4) = wav_size - 8;
+    memcpy(wav + 8, "WAVE", 4);
+    memcpy(wav + 12, "fmt ", 4);
+    *(uint32_t*)(wav + 16) = 16;
+    *(uint16_t*)(wav + 20) = 1;
+    *(uint16_t*)(wav + 22) = 2;
+    *(uint32_t*)(wav + 24) = sample_rate;
+    *(uint32_t*)(wav + 28) = sample_rate * 4;
+    *(uint16_t*)(wav + 32) = 4;
+    *(uint16_t*)(wav + 34) = 16;
+    memcpy(wav + 36, "data", 4);
+    *(uint32_t*)(wav + 40) = data_size;
+
+    memcpy(wav + 44, samples, data_size);
+
+    SDL_IOStream* io = SDL_IOFromMem(wav, wav_size);
+    if (io) {
+        MIX_Audio* audio = MIX_LoadAudio_IO(mixer, io, true, true);
+        if (audio) {
+            MIX_PlayAudio(mixer, audio);
+            MIX_DestroyAudio(audio);
+        }
+    }
+    SDL_free(wav);
+}
+
+void Game::play_croak(void){
+    int sample_rate = 44100;
+
+    // Palette modulation: hue of theme shifts the croak character
+    float palette_shift = 0.0f;  // 0=normal
+    switch (g_colorTheme) {
+        case 1: palette_shift = -0.2f; break;  // WARM: deeper
+        case 2: palette_shift =  0.3f; break;  // COOL: higher
+        case 3: palette_shift =  0.1f; break;  // NEON: slightly bright
+        case 4: palette_shift = -0.1f; break;  // MONO: slightly muted
+    }
+
+    float duration = 0.08f + (rand() % 80) * 0.001f;
+    int num_samples = (int)(sample_rate * duration);
+    float freq_start = (300.0f + rand() % 200) * (1.0f + palette_shift);
+    float freq_end = (80.0f + rand() % 60) * (1.0f + palette_shift * 0.5f);
+
+    vector<int16_t> buf(num_samples * 2);
+    float phase = 0.0f;
+    float harmonic_mix = (g_colorTheme == 3) ? 0.35f : 0.25f;  // NEON = more harmonics
+
+    for (int i = 0; i < num_samples; i++) {
+        float t = (float)i / num_samples;
+        float freq = lerp(freq_start, freq_end, t);
+
+        float env = 1.0f;
+        if (t < 0.05f) env = t / 0.05f;
+        else if (t > 0.7f) env = (1.0f - t) / 0.3f;
+
+        float sample = sinf(phase) * 0.6f
+                      + sinf(phase * 2.0f) * harmonic_mix
+                      + sinf(phase * 3.0f) * 0.1f;
+        sample += ((rand() % 1000) / 1000.0f - 0.5f) * 0.08f;
+        sample *= env * 0.5f;
+
+        int16_t s = (int16_t)(sample * 32000);
+        buf[i * 2] = s;
+        buf[i * 2 + 1] = s;
+
+        phase += 2.0f * M_PI * freq / sample_rate;
+        if (phase > 2.0f * M_PI) phase -= 2.0f * M_PI;
+    }
+
+    play_wav(buf.data(), num_samples, sample_rate);
 }
 
 void Game::apply_loot(Loot *loot){
@@ -1029,6 +1446,17 @@ void Game::apply_loot(Loot *loot){
             if (b2Body_IsValid(ship->physicsBody)) {
                 physicsWorld.setLinearVelocity(ship->physicsBody, ship->vel.x, ship->vel.y);
             }
+            // Activate tracers
+            tracerLengthMax = 10 + (int)(loot->value * 15);
+            g_tracerLength = tracerLengthMax;
+            tracerTimerMax = 5.0f + loot->value;
+            tracerTimer = tracerTimerMax;
+            break;
+        case MUSHROOM:
+            // Activate trippiness
+            g_trippyLevel = (int)loot->value;
+            g_colorTheme = static_cast<int>(ColorTheme::NEON);
+            trippyTimer = 5.0f + loot->value * 2.0f;
             break;
         case NUM_LOOT:
             break;
@@ -1045,12 +1473,18 @@ void Game::update_camera() {
     // Camera follows ship
     camera_target_x = ship->pos.x;
     camera_target_y = ship->pos.y;
-    camera_target_zoom = 1.0f;
+
+    // Zoom out at higher speeds so the player can see more
+    float speed = sqrtf(ship->vel.x * ship->vel.x + ship->vel.y * ship->vel.y);
+    float zoom_min = 0.5f;
+    float speed_for_min_zoom = 300.0f;
+    float t = std::min(speed / speed_for_min_zoom, 1.0f);
+    camera_target_zoom = lerp(1.0f, zoom_min, t);
 
     // Smooth lerp toward targets
-    camera_x += (camera_target_x - camera_x) * lerp_speed;
-    camera_y += (camera_target_y - camera_y) * lerp_speed;
-    camera_zoom += (camera_target_zoom - camera_zoom) * lerp_speed;
+    camera_x = lerp(camera_x, camera_target_x, lerp_speed);
+    camera_y = lerp(camera_y, camera_target_y, lerp_speed);
+    camera_zoom = lerp(camera_zoom, camera_target_zoom, 0.01f);
 
     if (fabsf(camera_zoom - camera_target_zoom) < 0.001f)
         camera_zoom = camera_target_zoom;
@@ -1122,6 +1556,12 @@ void Game::draw_text_scaled(const char* text, float x, float y, SDL_Color color,
 // ---- Menu drawing ----
 
 void Game::draw_menu(void) {
+    float save_zoom = g_camera_zoom;
+    float save_cx_cam = g_camera_x, save_cy_cam = g_camera_y;
+    g_camera_zoom = 1.0f;
+    g_camera_x = g_screen_cx;
+    g_camera_y = g_screen_cy;
+
     float cx = window_width / 2.0f;
     float cy = window_height / 2.0f;
 
@@ -1185,6 +1625,10 @@ void Game::draw_menu(void) {
 
     // Nav hint
     draw_text("arrows / tap to navigate    enter to select", cx, cy + 170, gray, true);
+
+    g_camera_zoom = save_zoom;
+    g_camera_x = save_cx_cam;
+    g_camera_y = save_cy_cam;
 }
 
 void Game::draw_pause(void) {
@@ -1193,6 +1637,12 @@ void Game::draw_pause(void) {
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 160);
     SDL_FRect overlay = {0, 0, (float)window_width, (float)window_height};
     SDL_RenderFillRect(renderer, &overlay);
+
+    float save_zoom = g_camera_zoom;
+    float save_cx_cam = g_camera_x, save_cy_cam = g_camera_y;
+    g_camera_zoom = 1.0f;
+    g_camera_x = g_screen_cx;
+    g_camera_y = g_screen_cy;
 
     float cx = window_width / 2.0f;
     float cy = window_height / 2.0f;
@@ -1218,6 +1668,10 @@ void Game::draw_pause(void) {
 
         pause_rects[i] = {btn_x, btn_y, btn_w, btn_h};
     }
+
+    g_camera_zoom = save_zoom;
+    g_camera_x = save_cx_cam;
+    g_camera_y = save_cy_cam;
 }
 
 // ---- Menu event handling ----
@@ -1380,6 +1834,32 @@ SDL_AppResult Game::handle_event(const SDL_Event& event) {
                 state = STATE_PAUSED;
                 pause_selection = 0;
             }
+            // Double-tap fire detection (keyboard)
+            if (event.type == SDL_EVENT_KEY_DOWN &&
+                event.key.scancode == SDL_SCANCODE_SPACE &&
+                !event.key.repeat) {
+                Uint64 now = SDL_GetTicks();
+                if (now - lastFireTapTime < 400) {
+                    launchDuder();
+                    lastFireTapTime = 0;
+                } else {
+                    lastFireTapTime = now;
+                }
+            }
+            // Double-tap fire detection (touch)
+            if (event.type == SDL_EVENT_FINGER_DOWN) {
+                float px = event.tfinger.x * window_width;
+                float py = event.tfinger.y * window_height;
+                if (touchInput.point_in_zone(px, py, touchInput.fire_zone)) {
+                    Uint64 now = SDL_GetTicks();
+                    if (now - lastFireTapTime < 400) {
+                        launchDuder();
+                        lastFireTapTime = 0;
+                    } else {
+                        lastFireTapTime = now;
+                    }
+                }
+            }
             if (event.type == SDL_EVENT_FINGER_DOWN ||
                 event.type == SDL_EVENT_FINGER_MOTION ||
                 event.type == SDL_EVENT_FINGER_UP) {
@@ -1443,6 +1923,10 @@ SDL_AppResult Game::iterate(void) {
                 SDL_RenderClear(renderer);
             }
 
+            // Draw HUD on top of buffer (after trail copy so it doesn't persist in trails)
+            SDL_SetRenderTarget(renderer, buffer);
+            draw_hud();
+
             // Present buffer to screen
             SDL_SetRenderTarget(renderer, NULL);
             SDL_RenderTexture(renderer, buffer, NULL, NULL);
@@ -1476,6 +1960,11 @@ void Game::shutdown(void){
 
     if (font)
         TTF_CloseFont(font);
+
+    if (sfx_track)
+        MIX_DestroyTrack(sfx_track);
+    if (sfx_audio)
+        MIX_DestroyAudio(sfx_audio);
 
     if (music_track)
         MIX_DestroyTrack(music_track);

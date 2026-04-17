@@ -65,6 +65,24 @@ void Loot::draw(void){
             }
             break;
         }
+        case MUSHROOM: {
+            // Stem
+            float stem_w = width2 * 0.4f;
+            float stem_h = height2 * 0.8f;
+            draw_filled_rounded_rect(
+                pos.x - stem_w, pos.y,
+                pos.x + stem_w, pos.y + stem_h,
+                3, 3, map_rgb(220, 200, 180)
+            );
+            // Cap (dome on top)
+            draw_filled_ellipse(pos.x, pos.y, width2, height2 * 0.7f, color);
+            // Spots on cap
+            float spot_r = width2 * 0.15f;
+            draw_filled_ellipse(pos.x - width2 * 0.35f, pos.y - height2 * 0.15f, spot_r, spot_r, map_rgb(255, 255, 255));
+            draw_filled_ellipse(pos.x + width2 * 0.3f, pos.y - height2 * 0.25f, spot_r * 0.8f, spot_r * 0.8f, map_rgb(255, 255, 255));
+            draw_filled_ellipse(pos.x + width2 * 0.05f, pos.y - height2 * 0.4f, spot_r * 0.7f, spot_r * 0.7f, map_rgb(255, 255, 255));
+            break;
+        }
         case NUM_LOOT:
             break;
     }

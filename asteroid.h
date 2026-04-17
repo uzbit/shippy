@@ -28,6 +28,7 @@ public:
     void destroy() { destroyed = true; }
     AsteroidSize getSize() const { return size; }
     float getRadius() const { return radius; }
+    GameColor getColor() const { return color; }
 
     Point vel;
     float angle;

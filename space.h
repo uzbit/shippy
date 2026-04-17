@@ -26,12 +26,11 @@ struct SpaceTraits {
     int numBodies;
     int numFuel;
     int numBoost;
+    int numMushroom;
     int numDuders;
     int numAsteroids;
     int numCuzers;
     int numGravityWells;
-    int trippyLevel;
-    int tracerLength;
     float asteroidSpeed;
     float cuzerSpeed;
     ColorTheme theme;

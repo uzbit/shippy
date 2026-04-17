@@ -7,6 +7,8 @@ SDL_Renderer* g_renderer = nullptr;
 float g_hueShift = 0.0f;
 int g_trippyLevel = 0;
 int g_colorTheme = 0;
+int g_colorThemePrev = 0;
+float g_colorThemeBlend = 1.0f;
 int g_tracerLength = 0;
 
 // Camera state - updated by Game::update_camera()
