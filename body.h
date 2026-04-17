@@ -3,7 +3,6 @@
 
 #include "sdl_compat.h"
 #include "object.h"
-#include "collision.h"
 
 class PhysicsWorld;
 
@@ -11,14 +10,13 @@ class Body : public Object{
 
     public:
     Body(){}
-    Body(float x, float y, float width, float height, GameColor color, bool filled);
+    Body(float x, float y, float width, float height, GameColor color);
     ~Body();
 
     void draw(void);
     void initPhysics(PhysicsWorld& world) override;
 
-    bool filled;
-    int round, thick;
+    int round;
     GameColor color;
     float density;
     float gravityStrength;  // 0 = normal body, >0 = gravity well (attracts other objects)

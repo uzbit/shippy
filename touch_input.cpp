@@ -9,9 +9,9 @@ TouchInput::TouchInput()
       joystick_origin_x(0), joystick_origin_y(0),
       joystick_current_x(0), joystick_current_y(0),
       joystick_max_radius(0) {
-    state = {0, 0, false, false};
+    state = {0, false, false};
     fire_zone = {0, 0, 0, 0};
-    brake_zone = {0, 0, 0, 0};
+    thrust_zone = {0, 0, 0, 0};
 }
 
 void TouchInput::init(int screen_width, int screen_height) {
@@ -32,8 +32,8 @@ void TouchInput::init(int screen_width, int screen_height) {
         btn_size
     };
 
-    // Brake button: left of fire
-    brake_zone = {
+    // Thrust button: left of fire
+    thrust_zone = {
         screen_w - margin * 2 - btn_size * 2,
         bottom - btn_size,
         btn_size,
@@ -52,8 +52,8 @@ void TouchInput::handle_event(const SDL_Event& event) {
 
         if (point_in_zone(px, py, fire_zone)) {
             state.fire_pressed = true;
-        } else if (point_in_zone(px, py, brake_zone)) {
-            state.brake_pressed = true;
+        } else if (point_in_zone(px, py, thrust_zone)) {
+            state.thrust_pressed = true;
         } else if (px < screen_w * 0.45f) {
             // Left side of screen: joystick
             joystick_active = true;
@@ -71,26 +71,17 @@ void TouchInput::handle_event(const SDL_Event& event) {
 
         if (joystick_active && event.tfinger.fingerID == joystick_finger) {
             joystick_current_x = px;
-            joystick_current_y = py;
+            joystick_current_y = joystick_origin_y; // horizontal-only
 
             float dx = joystick_current_x - joystick_origin_x;
-            float dy = joystick_current_y - joystick_origin_y;
 
-            // Clamp to max radius
-            float dist = sqrtf(dx * dx + dy * dy);
-            if (dist > joystick_max_radius) {
-                dx = dx / dist * joystick_max_radius;
-                dy = dy / dist * joystick_max_radius;
-                joystick_current_x = joystick_origin_x + dx;
-                joystick_current_y = joystick_origin_y + dy;
-            }
+            if (dx > joystick_max_radius) dx = joystick_max_radius;
+            if (dx < -joystick_max_radius) dx = -joystick_max_radius;
+            joystick_current_x = joystick_origin_x + dx;
 
-            // Normalize to -1..1 with deadzone
             float deadzone = 0.15f;
             state.joystick_x = dx / joystick_max_radius;
-            state.joystick_y = dy / joystick_max_radius;
             if (fabsf(state.joystick_x) < deadzone) state.joystick_x = 0;
-            if (fabsf(state.joystick_y) < deadzone) state.joystick_y = 0;
         }
 
         // Update button press state for held fingers that move
@@ -106,17 +97,14 @@ void TouchInput::handle_event(const SDL_Event& event) {
         if (joystick_active && event.tfinger.fingerID == joystick_finger) {
             joystick_active = false;
             state.joystick_x = 0;
-            state.joystick_y = 0;
         }
 
-        // Release buttons - check if any finger is still in the zone
-        // For simplicity, release on any finger up in that zone
         if (point_in_zone(px, py, fire_zone) ||
             (!joystick_active && event.tfinger.fingerID != joystick_finger)) {
             state.fire_pressed = false;
         }
-        if (point_in_zone(px, py, brake_zone)) {
-            state.brake_pressed = false;
+        if (point_in_zone(px, py, thrust_zone)) {
+            state.thrust_pressed = false;
         }
     }
 }
@@ -139,9 +127,9 @@ void TouchInput::draw_button_overlays() {
     GameColor fire_color = state.fire_pressed ?
         GameColor{1.0f, 0.3f, 0.3f, 0.4f} :
         GameColor{1.0f, 0.3f, 0.3f, 0.15f};
-    GameColor brake_color = state.brake_pressed ?
-        GameColor{0.3f, 0.5f, 1.0f, 0.4f} :
-        GameColor{0.3f, 0.5f, 1.0f, 0.15f};
+    GameColor thrust_color = state.thrust_pressed ?
+        GameColor{0.3f, 1.0f, 0.3f, 0.4f} :
+        GameColor{0.3f, 1.0f, 0.3f, 0.15f};
 
     // Fire button
     float fcx = fire_zone.x + fire_zone.w / 2;
@@ -150,12 +138,12 @@ void TouchInput::draw_button_overlays() {
     draw_filled_ellipse(fcx, fcy, fr, fr, fire_color);
     draw_ellipse(fcx, fcy, fr, fr, GameColor{1.0f, 0.3f, 0.3f, 0.3f}, 2.0f);
 
-    // Brake button
-    float bcx = brake_zone.x + brake_zone.w / 2;
-    float bcy = brake_zone.y + brake_zone.h / 2;
-    float br = brake_zone.w / 2 * 0.85f;
-    draw_filled_ellipse(bcx, bcy, br, br, brake_color);
-    draw_ellipse(bcx, bcy, br, br, GameColor{0.3f, 0.5f, 1.0f, 0.3f}, 2.0f);
+    // Thrust button
+    float tcx = thrust_zone.x + thrust_zone.w / 2;
+    float tcy = thrust_zone.y + thrust_zone.h / 2;
+    float tr = thrust_zone.w / 2 * 0.85f;
+    draw_filled_ellipse(tcx, tcy, tr, tr, thrust_color);
+    draw_ellipse(tcx, tcy, tr, tr, GameColor{0.3f, 1.0f, 0.3f, 0.3f}, 2.0f);
 }
 
 void TouchInput::draw() {

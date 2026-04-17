@@ -10,6 +10,7 @@
 #include <map>
 #include "ship.h"
 #include "loot.h"
+#include "synth.h"
 #include "space.h"
 #include "biases.h"
 #include "duder.h"
@@ -42,8 +43,10 @@ class Game{
     SDL_AppResult handle_event(const SDL_Event& event);
     SDL_AppResult iterate(void);
 
+    enum MusicMode { MUSIC_OFF, MUSIC_CUSTOM, MUSIC_ON };
+
     int difficulty;
-    bool music_on;
+    MusicMode music_mode;
     float fullscreen;
 
     private:
@@ -64,7 +67,7 @@ class Game{
     void draw_duder_bias(Duder *duder);
     void apply_loot(Loot *loot);
     void play_croak(void);
-    void play_impact_sound(Object* obj, GameColor color);
+    void play_impact_sound(Object* obj, GameColor color, SynthRole role = SynthRole::GENERAL);
     void play_wav(int16_t* samples, int num_samples, int sample_rate);
     void launchDuder(void);
     void processCollisions(void);
@@ -99,9 +102,15 @@ class Game{
     MIX_Mixer* mixer;
     MIX_Audio* music_audio;
     MIX_Track* music_track;
-    MIX_Track* sfx_track;
-    MIX_Audio* sfx_audio;
-    vector<int16_t> sfx_loop_buffer;
+    // Per-role loop tracks (bass, mid, hihat, general)
+    static const int SFX_TRACK_COUNT = 4;
+    MIX_Track* sfx_tracks[SFX_TRACK_COUNT];
+    MIX_Audio* sfx_audios[SFX_TRACK_COUNT];
+    vector<int16_t> sfx_buffers[SFX_TRACK_COUNT];
+    bool sfx_dirty[SFX_TRACK_COUNT];
+    void rebuildSfxLoop(int track_idx);
+    void clearAllSfxLoops(void);
+    int roleToTrack(SynthRole role);
     SDL_Texture* buffer;
     SDL_Texture* trailBuffer;
 
@@ -145,6 +154,9 @@ class Game{
     float camera_zoom;
     float camera_target_zoom;
     float camera_target_x, camera_target_y;
+
+    // Music state
+    MusicState musicState;
 
     // Loot effect timers (seconds remaining)
     float trippyTimer;

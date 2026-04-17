@@ -12,7 +12,7 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
 
     game = new Game();
     game->difficulty = 0;
-    game->music_on = false;
+    game->music_mode = Game::MUSIC_OFF;
     game->fullscreen = 1.0f;
 
     game->init_graphics();

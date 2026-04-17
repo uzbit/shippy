@@ -1,8 +1,10 @@
 #ifndef _CUZER_H_
 #define _CUZER_H_
 
+#include <memory>
 #include "object.h"
 #include "sdl_compat.h"
+#include "ai.h"
 
 class PhysicsWorld;
 
@@ -18,7 +20,7 @@ public:
     Cuzer(float x, float y, CuzerSize size);
     ~Cuzer() {}
 
-    void update(void);
+    void update(float shipX, float shipY);
     void draw(void);
     void initPhysics(PhysicsWorld& world) override;
     void syncFromPhysics() override;
@@ -43,6 +45,7 @@ private:
     int maxHitPoints;
     GameColor baseColor;
     PhysicsWorld* physicsWorldPtr = nullptr;
+    std::unique_ptr<NpcAi> ai;
 };
 
 #endif

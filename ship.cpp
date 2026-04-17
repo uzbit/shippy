@@ -248,8 +248,6 @@ void Ship::draw_brake_flame(void){
 }
 
 void Ship::draw(void){
-    computeRect();
-
     float cosA = cos(angle);
     float sinA = sin(angle);
 

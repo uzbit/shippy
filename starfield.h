@@ -9,22 +9,24 @@
 
 using namespace std;
 
-class Star : public Object {
-
-    public:
-    Star(float x, float y, int lifespan);
-    ~Star(){};
-
-    void update(int w, int h);
-    void draw(void);
-
+struct Star {
+    float x, y;          // world position
+    float size;           // radius 0.5-3.0
+    float brightness;     // base brightness 0-1
+    float twinkle_speed;  // how fast it twinkles
+    float twinkle_phase;  // offset so stars don't sync
+    float depth;          // 0.0 = far (slow), 1.0 = near (fast parallax)
     GameColor color;
-    int lifespan, counter;
-
 };
 
-class Starfield{
+struct Nebula {
+    float x, y;           // world position
+    float radius;         // cloud size
+    GameColor color;      // base color (low alpha)
+    float depth;          // parallax depth
+};
 
+class Starfield {
     public:
     Starfield(){};
     ~Starfield(){};
@@ -36,11 +38,8 @@ class Starfield{
     private:
     int num_stars;
     vector<Star> stars;
+    vector<Nebula> nebulas;
     int window_width, window_height;
 };
 
-
-
-
 #endif
-

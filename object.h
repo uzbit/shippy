@@ -4,7 +4,6 @@
 #include <map>
 #include <box2d/box2d.h>
 #include "geom.h"
-#include "collision.h"
 
 class PhysicsWorld;
 
@@ -14,26 +13,14 @@ class Object{
     Object(float x, float y, float width, float height);
     virtual ~Object(){}
 
-    Collision collides(Object *obj);
-
-    Rect computeRect(void){
-        rect = Rect(
-            pos.x-width2, pos.y-height2,
-            pos.x+width2, pos.y+height2
-        );
-        return rect;
-    }
-
     virtual void initPhysics(PhysicsWorld& world) {}
     virtual void syncFromPhysics() {}
     virtual void destroyPhysics(PhysicsWorld& world);
 
     Point pos;
-    Rect rect;
     float width, height;
     float width2, height2;
     int chunk_cx, chunk_cy;  // Which chunk this entity belongs to
-    map<Object *, Collision> prev_collision_map;
     b2BodyId physicsBody;
 };
 

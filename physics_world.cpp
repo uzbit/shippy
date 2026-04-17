@@ -17,6 +17,7 @@ void PhysicsWorld::init(float gravity_y) {
 
     b2WorldDef worldDef = b2DefaultWorldDef();
     worldDef.gravity = {0.0f, toMeters(gravity_y)};
+    worldDef.hitEventThreshold = 0.1f;  // lower threshold so more collisions trigger sounds
     worldId = b2CreateWorld(&worldDef);
     initialized = true;
 }

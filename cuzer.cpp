@@ -9,7 +9,8 @@
 Cuzer::Cuzer()
     : Object(0, 0, 40, 40), angle(0), angularVel(0), destroyed(false),
       size(CuzerSize::MEDIUM), radius(28), hitPoints(2), maxHitPoints(2),
-      baseColor(map_rgb(100, 200, 255)) {
+      baseColor(map_rgb(100, 200, 255)),
+      ai(std::make_unique<BurstPursuitAi>()) {
 }
 
 Cuzer::Cuzer(float x, float y, CuzerSize sz)
@@ -46,6 +47,8 @@ Cuzer::Cuzer(float x, float y, CuzerSize sz)
     // Random initial velocity
     vel.x = ((rand() % 200) - 100) / 80.0f;
     vel.y = ((rand() % 200) - 100) / 80.0f;
+
+    ai = std::make_unique<BurstPursuitAi>();
 }
 
 bool Cuzer::takeHit() {
@@ -64,8 +67,8 @@ void Cuzer::initPhysics(PhysicsWorld& world) {
     // Create as dynamic body
     physicsBody = world.createBody(this, PhysicsBodyType::DYNAMIC, 1.0f, 0.3f, 0.8f);
     if (b2Body_IsValid(physicsBody)) {
-        b2Body_SetLinearDamping(physicsBody, 0.0f);
-        b2Body_SetAngularDamping(physicsBody, 0.0f);
+        b2Body_SetLinearDamping(physicsBody, 0.8f);
+        b2Body_SetAngularDamping(physicsBody, 0.5f);
         b2Body_SetGravityScale(physicsBody, 0.0f);  // No gravity for cuzers
         // Set initial velocity and angular velocity
         world.setLinearVelocity(physicsBody, vel.x, vel.y);
@@ -88,10 +91,14 @@ void Cuzer::syncFromPhysics() {
     angularVel = b2Body_GetAngularVelocity(physicsBody);
 }
 
-void Cuzer::update(void) {
+void Cuzer::update(float shipX, float shipY) {
     if (destroyed) return;
 
     if (physicsWorldPtr && b2Body_IsValid(physicsBody)) {
+        if (ai) {
+            AiContext ctx{pos.x, pos.y, angle, physicsBody, physicsWorldPtr, shipX, shipY};
+            ai->update(ctx);
+        }
         syncFromPhysics();
     } else {
         pos.x += vel.x;
@@ -102,8 +109,6 @@ void Cuzer::update(void) {
 
 void Cuzer::draw(void) {
     if (destroyed) return;
-
-    computeRect();
 
     // Calculate damage color shift (redder as HP decreases)
     float damageRatio = (float)hitPoints / (float)maxHitPoints;

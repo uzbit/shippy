@@ -5,9 +5,8 @@
 
 struct TouchState {
     float joystick_x;    // -1.0 to 1.0 (rotation)
-    float joystick_y;    // -1.0 to 1.0 (thrust when negative/up)
     bool fire_pressed;
-    bool brake_pressed;
+    bool thrust_pressed;
 };
 
 class TouchInput {
@@ -20,7 +19,7 @@ public:
     TouchState state;
     bool point_in_zone(float x, float y, const SDL_FRect& zone);
     SDL_FRect fire_zone;
-    SDL_FRect brake_zone;
+    SDL_FRect thrust_zone;
 
 private:
     int screen_w, screen_h;

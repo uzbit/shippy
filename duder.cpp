@@ -122,8 +122,6 @@ void Duder::update(int w, int h, float target_x, float target_y, float target_vx
 
 
 void Duder::draw(void){
-    computeRect();
-
     if (!is_killed){
         float hw = width2;
         float hh = height2;

@@ -70,8 +70,10 @@ set(SOURCES
     projectile.cpp
     asteroid.cpp
     cuzer.cpp
+    ai.cpp
     platform.cpp
     touch_input.cpp
+    synth.cpp
 )
 
 if(ANDROID)

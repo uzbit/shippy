@@ -25,16 +25,16 @@ void applyRot(Point *p, float theta){
 
 void Loot::draw(void){
     switch(type){
-        case FUEL:
-            draw_rounded_rect(
-                rect.tl.x, rect.tl.y, rect.br.x, rect.br.y,
-                4, 4, color, 4
-            );
-            draw_line(rect.tl.x, rect.tl.y, rect.br.x, rect.br.y, color, 2);
-            draw_line(rect.br.x, rect.tl.y, rect.tl.x, rect.br.y, color, 2);
-            draw_line(rect.tl.x, rect.tl.y, rect.tl.x-4, rect.tl.y-4, color, 3);
-            draw_line(rect.tl.x-4, rect.tl.y-4, rect.tl.x-10, rect.tl.y-4, color, 3);
+        case FUEL: {
+            float x1 = pos.x - width2, y1 = pos.y - height2;
+            float x2 = pos.x + width2, y2 = pos.y + height2;
+            draw_rounded_rect(x1, y1, x2, y2, 4, 4, color, 4);
+            draw_line(x1, y1, x2, y2, color, 2);
+            draw_line(x2, y1, x1, y2, color, 2);
+            draw_line(x1, y1, x1-4, y1-4, color, 3);
+            draw_line(x1-4, y1-4, x1-10, y1-4, color, 3);
             break;
+        }
         case BOOST: {
             Point p1, p2, p3;
             float d = 0.5*width2;

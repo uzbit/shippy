@@ -95,8 +95,6 @@ void Asteroid::update(void) {
 void Asteroid::draw(void) {
     if (destroyed) return;
 
-    computeRect();
-
     // Draw asteroid as an irregular polygon
     float cosA = cos(angle);
     float sinA = sin(angle);

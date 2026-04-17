@@ -43,7 +43,6 @@ void Projectile::syncFromPhysics() {
     vel.x = physVel.x;
     vel.y = physVel.y;
 
-    // Update angle based on velocity direction
     if (vel.x != 0 || vel.y != 0) {
         angle = atan2(vel.y, vel.x);
     }
@@ -68,8 +67,6 @@ void Projectile::update(void) {
 
 void Projectile::draw(void) {
     if (expired) return;
-
-    computeRect();
 
     // Draw projectile as a small bright dot/circle
     float radius = width2;

@@ -3,7 +3,6 @@
 
 #include "sdl_compat.h"
 #include "object.h"
-#include "collision.h"
 
 class PhysicsWorld;
 

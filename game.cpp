@@ -13,6 +13,7 @@
 #include "space.h"
 #include "ship.h"
 #include "loot.h"
+#include "synth.h"
 #include "body.h"
 #include "starfield.h"
 #include "sdl_compat.h"
@@ -23,12 +24,17 @@ using namespace std;
 Game::Game()
 :done(false), difficulty(1),
  window(nullptr), renderer(nullptr), font(nullptr), mixer(nullptr),
- music_audio(nullptr), music_track(nullptr), sfx_track(nullptr), sfx_audio(nullptr),
+ music_audio(nullptr), music_track(nullptr),
  buffer(nullptr), trailBuffer(nullptr), lastFireTime(0), fireRate(200),
  state(STATE_MENU), menu_selection(2), pause_selection(0), ship(nullptr),
  chunk_w(0), chunk_h(0),
  camera_x(0), camera_y(0), camera_zoom(1.0f), camera_target_zoom(1.0f),
  camera_target_x(0), camera_target_y(0){
+    for (int i = 0; i < SFX_TRACK_COUNT; i++) {
+        sfx_tracks[i] = nullptr;
+        sfx_audios[i] = nullptr;
+        sfx_dirty[i] = false;
+    }
 }
 
 Game::~Game(){
@@ -87,8 +93,10 @@ void Game::init_graphics(void){
     if (!mixer)
         abort("Failed to create SDL_mixer device");
 
-    // Create SFX track for looping impact sounds
-    sfx_track = MIX_CreateTrack(mixer);
+    // Create per-role SFX tracks for looping impact sounds
+    for (int i = 0; i < SFX_TRACK_COUNT; i++) {
+        sfx_tracks[i] = MIX_CreateTrack(mixer);
+    }
 
     // Create window
 #ifdef SDL_PLATFORM_ANDROID
@@ -187,10 +195,9 @@ void Game::init_game(void){
     g_trippyLevel = 0;
     g_tracerLength = 0;
     g_hueShift = 0.0f;
+    synth_music_init(musicState);
     particles.clear();
-    sfx_loop_buffer.clear();
-    if (sfx_track) MIX_StopTrack(sfx_track, 0);
-    if (sfx_audio) { MIX_DestroyAudio(sfx_audio); sfx_audio = nullptr; }
+    clearAllSfxLoops();
     chunk_w = window_width;
     chunk_h = window_height;
 
@@ -198,7 +205,7 @@ void Game::init_game(void){
     if (music_track) { MIX_DestroyTrack(music_track); music_track = nullptr; }
     if (music_audio) { MIX_DestroyAudio(music_audio); music_audio = nullptr; }
 
-    if (music_on) {
+    if (music_mode == MUSIC_ON) {
         std::string music_path = asset_path("Power_Glove-Clutch.ogg");
         music_audio = MIX_LoadAudio(mixer, music_path.c_str(), true);
         if (music_audio) {
@@ -212,6 +219,8 @@ void Game::init_game(void){
             }
         }
     }
+    // MUSIC_CUSTOM: no file music, sounds come from our synth system
+    // MUSIC_OFF: no music at all
 
     physicsWorld.init(0.6f);
 
@@ -253,11 +262,9 @@ void Game::load_chunk(int cx, int cy) {
         float py = base_y + (rand() % (int)(chunk_h - h/2));
 
         Body* body = new Body(px, py, w, h,
-            map_rgb(rand()%255, rand()%255, rand()%255),
-            rand()%2 > 0);
+            map_rgb(rand()%255, rand()%255, rand()%255));
         body->chunk_cx = cx;
         body->chunk_cy = cy;
-        body->computeRect();
         body->initPhysics(physicsWorld);
 
         // Gravity wells
@@ -271,7 +278,6 @@ void Game::load_chunk(int cx, int cy) {
                 body->height = avgSize;
                 body->width2 = avgSize / 2;
                 body->height2 = avgSize / 2;
-                body->computeRect();
             }
         }
 
@@ -456,16 +462,8 @@ SpaceTraits& Game::get_chunk_traits(int cx, int cy) {
 }
 
 void Game::update_graphics(void){
-    // Starfield draws without camera (fixed background)
-    float save_zoom = g_camera_zoom;
-    float save_cx = g_camera_x, save_cy = g_camera_y;
-    g_camera_zoom = 1.0f;
-    g_camera_x = g_screen_cx;
-    g_camera_y = g_screen_cy;
+    // Starfield handles its own parallax using camera globals
     starfield.draw();
-    g_camera_zoom = save_zoom;
-    g_camera_x = save_cx;
-    g_camera_y = save_cy;
 
     // Draw all world entities (camera handles viewport)
     for (auto* body : world_bodies) body->draw();
@@ -520,8 +518,11 @@ void Game::update_game(void){
         if (g_colorThemeBlend > 1.0f) g_colorThemeBlend = 1.0f;
     }
 
-    // Decay loot effect timers
+    // Tick music state
     float dt = 1.0f / 60.0f;
+    synth_music_tick(musicState, dt);
+
+    // Decay loot effect timers
     if (trippyTimer > 0.0f) {
         trippyTimer -= dt;
         if (trippyTimer <= 0.0f) {
@@ -566,6 +567,8 @@ void Game::update_game(void){
         duder.update(chunk_w, chunk_h, ship->pos.x, ship->pos.y, ship->vel.x, ship->vel.y);
 
     updateParticles();
+    for (int i = 0; i < SFX_TRACK_COUNT; i++)
+        rebuildSfxLoop(i);
 
     // Load/unload chunks AFTER physics+collisions to avoid stale pointers
     update_chunks();
@@ -620,16 +623,11 @@ void Game::fireProjectile(void) {
     float noseX = ship->pos.x + cos(ship->angle) * ship->height2;
     float noseY = ship->pos.y + sin(ship->angle) * ship->height2;
 
-    // Projectile speed (independent base speed)
-    float projectileSpeed = 80.0f;
-
-    projectiles.emplace_back(noseX, noseY, ship->angle, projectileSpeed);
+    projectiles.emplace_back(noseX, noseY, ship->angle, PHOTON_SPEED);
     Projectile& proj = projectiles.back();
 
-    // Set projectile's space coordinates to current space
-    // Projectiles live in world coords, no space tracking needed
-
-    // Add ship's velocity so projectiles inherit momentum
+    // Add ship velocity so the photon moves away from the ship at c,
+    // regardless of how fast the ship itself is moving.
     proj.vel.x += ship->vel.x;
     proj.vel.y += ship->vel.y;
 
@@ -673,116 +671,88 @@ void Game::launchDuder(void) {
     play_croak();
 }
 
-void Game::play_impact_sound(Object* obj, GameColor color) {
-    int sample_rate = 44100;
-    float obj_size = sqrtf(obj->width2 * obj->width2 + obj->height2 * obj->height2);
+void Game::play_impact_sound(Object* obj, GameColor color, SynthRole role) {
+    if (music_mode != MUSIC_CUSTOM) return;
 
-    // Get the instantaneous (theme/trippy-transformed) color's HSV
+    // Get instantaneous (theme/trippy-transformed) color HSV
     GameColor tc = transform_color(color);
     float hue, sat, val;
     rgb_to_hsv(tc.r, tc.g, tc.b, hue, sat, val);
+    float obj_size = sqrtf(obj->width2 * obj->width2 + obj->height2 * obj->height2);
 
-    // Hue → pitch (red=low, cyan=mid, blue=high)
-    float freq_base = 150.0f + hue * 600.0f;
-    // Size still influences pitch
-    freq_base *= 1.0f - std::min(0.5f, obj_size * 0.002f);
+    SynthParams params = synth_from_color(hue, sat, val, obj_size, g_colorTheme, role, musicState, (float)g_trippyLevel);
+    params.reverb_amount = std::min(1.0f, g_tracerLength / 80.0f);
+    auto buf = synth_generate(params);
+    int num_samples = (int)buf.size() / 2;
 
-    // Saturation → harmonic richness (desaturated = pure sine, saturated = gritty)
-    float harmonics = sat * 0.6f;
+    // Play immediately
+    play_wav(buf.data(), num_samples, 44100);
 
-    // Value/brightness → volume and sustain
-    float volume = 0.2f + val * 0.3f;
-    float decay_rate = 3.0f + (1.0f - val) * 6.0f;  // bright = longer sustain
-
-    // Duration from size + brightness
-    float duration = 0.1f + std::min(0.5f, obj_size * 0.004f + val * 0.1f);
-    int num_samples = (int)(sample_rate * duration);
-
-    // Palette modulation
-    float palette_detune = 0.0f;
-    float palette_noise = 0.05f;
-    switch (g_colorTheme) {
-        case 1: palette_detune = -0.05f; palette_noise = 0.02f; break;  // WARM: slightly flat, clean
-        case 2: palette_detune =  0.05f; palette_noise = 0.03f; break;  // COOL: slightly sharp, clean
-        case 3: palette_detune =  0.0f;  palette_noise = 0.1f;  break;  // NEON: noisy/buzzy
-        case 4: palette_detune =  0.0f;  palette_noise = 0.01f; break;  // MONO: very clean
+    // Mix/overlay into the per-role loop buffer, quantized to 16th note grid
+    int tidx = roleToTrack(role);
+    float beat_len = 60.0f / musicState.bpm;
+    int loop_samples = (int)(beat_len * 4 * 44100) * 2;  // 4 beats, stereo
+    if (loop_samples < 44100) loop_samples = 44100 * 2;
+    if ((int)sfx_buffers[tidx].size() != loop_samples) {
+        sfx_buffers[tidx].assign(loop_samples, 0);
     }
 
-    vector<int16_t> buf(num_samples * 2);
-    float phase = 0.0f;
+    // Quantize write position to nearest 16th note
+    int sixteenth = loop_samples / 16;
+    int quantized_pos = ((int)(musicState.beat_time * 44100 * 2) % loop_samples);
+    quantized_pos = (quantized_pos / sixteenth) * sixteenth;
 
-    for (int i = 0; i < num_samples; i++) {
-        float t = (float)i / num_samples;
-        float freq = freq_base * (1.0f + palette_detune);
-
-        // Sharp attack, exponential decay
-        float env = expf(-t * decay_rate);
-        if (t < 0.01f) env *= t / 0.01f;
-
-        float sample = sinf(phase) * 0.5f
-                      + sinf(phase * 2.0f) * 0.2f * harmonics
-                      + sinf(phase * 3.0f) * 0.1f * harmonics
-                      + sinf(phase * 5.0f) * 0.05f * harmonics;
-
-        sample += ((rand() % 1000) / 1000.0f - 0.5f) * palette_noise * env;
-
-        sample *= env * volume;
-        int16_t s = (int16_t)(sample * 32000);
-        buf[i * 2] = s;
-        buf[i * 2 + 1] = s;
-
-        phase += 2.0f * M_PI * freq / sample_rate;
-        if (phase > 2.0f * M_PI) phase -= 2.0f * M_PI;
+    // Mix new samples into the role's loop buffer
+    for (int i = 0; i < (int)buf.size() && i < loop_samples; i++) {
+        int idx = (quantized_pos + i) % loop_samples;
+        int32_t mixed = (int32_t)sfx_buffers[tidx][idx] + (int32_t)buf[i];
+        sfx_buffers[tidx][idx] = (int16_t)std::clamp(mixed, (int32_t)-32000, (int32_t)32000);
     }
+    sfx_dirty[tidx] = true;
+}
 
-    // Append to the loop buffer and rebuild the looping track
-    sfx_loop_buffer.insert(sfx_loop_buffer.end(), buf.begin(), buf.end());
+void Game::rebuildSfxLoop(int track_idx) {
+    if (!sfx_dirty[track_idx] || !sfx_tracks[track_idx] || sfx_buffers[track_idx].empty()) return;
+    sfx_dirty[track_idx] = false;
 
-    // Cap the buffer so it doesn't grow forever (~10 seconds of stereo audio)
-    int max_samples = 44100 * 2 * 10;
-    if ((int)sfx_loop_buffer.size() > max_samples) {
-        sfx_loop_buffer.erase(sfx_loop_buffer.begin(),
-                               sfx_loop_buffer.begin() + (sfx_loop_buffer.size() - max_samples));
-    }
+    MIX_StopTrack(sfx_tracks[track_idx], 0);
+    if (sfx_audios[track_idx]) { MIX_DestroyAudio(sfx_audios[track_idx]); sfx_audios[track_idx] = nullptr; }
 
-    // Rebuild the looping audio from the buffer
-    if (sfx_track) {
-        MIX_StopTrack(sfx_track, 0);
-        if (sfx_audio) { MIX_DestroyAudio(sfx_audio); sfx_audio = nullptr; }
+    int num_samples = (int)sfx_buffers[track_idx].size() / 2;
+    int wav_size = 0;
+    uint8_t* wav = synth_build_wav(sfx_buffers[track_idx].data(), num_samples, 44100, &wav_size);
+    if (!wav) return;
 
-        // Build WAV in memory from the loop buffer
-        int data_size = sfx_loop_buffer.size() * sizeof(int16_t);
-        int wav_size = 44 + data_size;
-        uint8_t* wav = (uint8_t*)SDL_malloc(wav_size);
-        if (wav) {
-            memcpy(wav, "RIFF", 4);
-            *(uint32_t*)(wav + 4) = wav_size - 8;
-            memcpy(wav + 8, "WAVE", 4);
-            memcpy(wav + 12, "fmt ", 4);
-            *(uint32_t*)(wav + 16) = 16;
-            *(uint16_t*)(wav + 20) = 1;
-            *(uint16_t*)(wav + 22) = 2;
-            *(uint32_t*)(wav + 24) = 44100;
-            *(uint32_t*)(wav + 28) = 44100 * 4;
-            *(uint16_t*)(wav + 32) = 4;
-            *(uint16_t*)(wav + 34) = 16;
-            memcpy(wav + 36, "data", 4);
-            *(uint32_t*)(wav + 40) = data_size;
-            memcpy(wav + 44, sfx_loop_buffer.data(), data_size);
-
-            SDL_IOStream* io = SDL_IOFromMem(wav, wav_size);
-            if (io) {
-                sfx_audio = MIX_LoadAudio_IO(mixer, io, true, true);
-                if (sfx_audio) {
-                    MIX_SetTrackAudio(sfx_track, sfx_audio);
-                    SDL_PropertiesID props = SDL_CreateProperties();
-                    SDL_SetNumberProperty(props, MIX_PROP_PLAY_LOOPS_NUMBER, -1);
-                    MIX_PlayTrack(sfx_track, props);
-                    SDL_DestroyProperties(props);
-                }
-            }
-            SDL_free(wav);
+    SDL_IOStream* io = SDL_IOFromMem(wav, wav_size);
+    if (io) {
+        sfx_audios[track_idx] = MIX_LoadAudio_IO(mixer, io, true, true);
+        if (sfx_audios[track_idx]) {
+            MIX_SetTrackAudio(sfx_tracks[track_idx], sfx_audios[track_idx]);
+            SDL_PropertiesID props = SDL_CreateProperties();
+            SDL_SetNumberProperty(props, MIX_PROP_PLAY_LOOPS_NUMBER, -1);
+            MIX_PlayTrack(sfx_tracks[track_idx], props);
+            SDL_DestroyProperties(props);
         }
+    }
+    SDL_free(wav);
+}
+
+int Game::roleToTrack(SynthRole role) {
+    switch (role) {
+        case SynthRole::BASS:    return 0;
+        case SynthRole::MID:     return 1;
+        case SynthRole::HIHAT:   return 2;
+        case SynthRole::GENERAL: return 3;
+    }
+    return 3;
+}
+
+void Game::clearAllSfxLoops(void) {
+    for (int i = 0; i < SFX_TRACK_COUNT; i++) {
+        sfx_buffers[i].clear();
+        sfx_dirty[i] = false;
+        if (sfx_tracks[i]) MIX_StopTrack(sfx_tracks[i], 0);
+        if (sfx_audios[i]) { MIX_DestroyAudio(sfx_audios[i]); sfx_audios[i] = nullptr; }
     }
 }
 
@@ -821,7 +791,7 @@ void Game::updateAsteroids(void) {
 void Game::updateCuzers(void) {
     for (auto& cuzer : world_cuzers) {
         if (!cuzer.isDestroyed())
-            cuzer.update();
+            cuzer.update(ship->pos.x, ship->pos.y);
     }
     for (auto it = world_cuzers.begin(); it != world_cuzers.end(); ) {
         if (it->isDestroyed()) {
@@ -1035,6 +1005,7 @@ void Game::processCollisions(void) {
             }
 
             if (!asteroidMarked) {
+                play_impact_sound(asteroidObj, asteroidObj->getColor(), SynthRole::HIHAT);
                 spawnExplosion(asteroidObj->pos.x, asteroidObj->pos.y,
                                asteroidObj->getRadius(), asteroidObj->getColor(),
                                15 + (int)(asteroidObj->getRadius() * 0.5f));
@@ -1073,7 +1044,6 @@ void Game::processCollisions(void) {
 
         // Ship-asteroid collision: damage ship (lose fuel)
         if (shipObj && asteroidObj && !asteroidObj->isDestroyed()) {
-            // Lose fuel proportional to asteroid size
             float damage = 100.0f;
             switch (asteroidObj->getSize()) {
                 case AsteroidSize::SMALL: damage = 50.0f; break;
@@ -1082,6 +1052,7 @@ void Game::processCollisions(void) {
             }
             ship->fuel -= damage;
             if (ship->fuel < 0) ship->fuel = 0;
+            play_impact_sound(asteroidObj, asteroidObj->getColor(), SynthRole::MID);
         }
 
         // Projectile-cuzer collision: hit cuzer and destroy projectile
@@ -1098,6 +1069,7 @@ void Game::processCollisions(void) {
             }
 
             if (!cuzerMarked) {
+                play_impact_sound(cuzerObj, cuzerObj->getColor(), SynthRole::HIHAT);
                 // takeHit() returns true if cuzer is destroyed
                 if (cuzerObj->takeHit()) {
                     spawnExplosion(cuzerObj->pos.x, cuzerObj->pos.y,
@@ -1105,10 +1077,8 @@ void Game::processCollisions(void) {
                                    20 + (int)(cuzerObj->getRadius() * 0.8f));
                     cuzersToDestroy.push_back(cuzerObj);
 
-                    // Clear the SFX loop when a cuzer is killed by bullets
-                    sfx_loop_buffer.clear();
-                    if (sfx_track) MIX_StopTrack(sfx_track, 0);
-                    if (sfx_audio) { MIX_DestroyAudio(sfx_audio); sfx_audio = nullptr; }
+                    // Clear all SFX loops when a cuzer is killed by bullets
+                    clearAllSfxLoops();
                 }
             }
             if (!projectileMarked) {
@@ -1119,7 +1089,6 @@ void Game::processCollisions(void) {
 
         // Ship-cuzer collision: damage ship (lose fuel)
         if (shipObj && cuzerObj && !cuzerObj->isDestroyed()) {
-            // Lose fuel proportional to cuzer size
             float damage = 100.0f;
             switch (cuzerObj->getSize()) {
                 case CuzerSize::SMALL: damage = 40.0f; break;
@@ -1128,12 +1097,18 @@ void Game::processCollisions(void) {
             }
             ship->fuel -= damage;
             if (ship->fuel < 0) ship->fuel = 0;
+            play_impact_sound(cuzerObj, cuzerObj->getColor(), SynthRole::MID);
+        }
+
+        // Ship-body collision: play bass sound
+        if (shipObj && bodyObj) {
+            play_impact_sound(bodyObj, bodyObj->color, SynthRole::MID);
         }
 
         // Duder-body collisions handled by Box2D physics
     }
 
-    // Hit events: launched duders generate sounds on every bounce/impact
+    // Hit events: generate sounds based on what's colliding
     for (int i = 0; i < contactEvents.hitCount; i++) {
         b2ContactHitEvent* hitEvent = contactEvents.hitEvents + i;
         if (!b2Shape_IsValid(hitEvent->shapeIdA) || !b2Shape_IsValid(hitEvent->shapeIdB))
@@ -1143,23 +1118,47 @@ void Game::processCollisions(void) {
         Object* objB = (Object*)b2Shape_GetUserData(hitEvent->shapeIdB);
         if (!objA || !objB) continue;
 
+        auto getObjColor = [](Object* obj) -> GameColor {
+            if (auto* a = dynamic_cast<Asteroid*>(obj)) return a->getColor();
+            if (auto* c = dynamic_cast<Cuzer*>(obj)) return c->getColor();
+            if (auto* b = dynamic_cast<Body*>(obj)) return b->color;
+            if (auto* d = dynamic_cast<Duder*>(obj)) return d->color;
+            return map_rgb(255, 255, 255);
+        };
+
         Duder* duderObj = dynamic_cast<Duder*>(objA);
         if (!duderObj) duderObj = dynamic_cast<Duder*>(objB);
 
+        Projectile* projObj = dynamic_cast<Projectile*>(objA);
+        if (!projObj) projObj = dynamic_cast<Projectile*>(objB);
+
+        Ship* shipObj = dynamic_cast<Ship*>(objA);
+        if (!shipObj) shipObj = dynamic_cast<Ship*>(objB);
+
+        // Ship collisions → BASS
+        if (shipObj) {
+            Object* hitObj = (objA != (Object*)shipObj) ? objA : objB;
+            play_impact_sound(hitObj, getObjColor(hitObj), SynthRole::MID);
+        }
+
+        // Launched duder collisions → BASS
         if (duderObj && duderObj->is_launched) {
             Object* hitObj = (objA != (Object*)duderObj) ? objA : objB;
             if (!dynamic_cast<Ship*>(hitObj)) {
-                GameColor hitColor = map_rgb(255, 255, 255);
-                if (auto* a = dynamic_cast<Asteroid*>(hitObj)) hitColor = a->getColor();
-                else if (auto* c = dynamic_cast<Cuzer*>(hitObj)) hitColor = c->getColor();
-                else if (auto* b = dynamic_cast<Body*>(hitObj)) hitColor = b->color;
-                else if (auto* d = dynamic_cast<Duder*>(hitObj)) hitColor = d->color;
-
-                play_impact_sound(hitObj, hitColor);
+                GameColor hitColor = getObjColor(hitObj);
+                play_impact_sound(hitObj, hitColor, SynthRole::BASS);
                 spawnExplosion(hitEvent->point.x * PIXELS_PER_METER,
                                hitEvent->point.y * PIXELS_PER_METER,
                                5.0f + hitEvent->approachSpeed * 2.0f,
                                hitColor, 5);
+            }
+        }
+
+        // Bullet/projectile collisions → HIHAT
+        if (projObj) {
+            Object* hitObj = (objA != (Object*)projObj) ? objA : objB;
+            if (!dynamic_cast<Ship*>(hitObj)) {
+                play_impact_sound(hitObj, getObjColor(hitObj), SynthRole::HIHAT);
             }
         }
     }
@@ -1356,26 +1355,9 @@ void Game::drawParticles(void) {
 }
 
 void Game::play_wav(int16_t* samples, int num_samples, int sample_rate) {
-    int data_size = num_samples * 2 * sizeof(int16_t);
-    int wav_size = 44 + data_size;
-    uint8_t* wav = (uint8_t*)SDL_malloc(wav_size);
+    int wav_size = 0;
+    uint8_t* wav = synth_build_wav(samples, num_samples, sample_rate, &wav_size);
     if (!wav) return;
-
-    memcpy(wav, "RIFF", 4);
-    *(uint32_t*)(wav + 4) = wav_size - 8;
-    memcpy(wav + 8, "WAVE", 4);
-    memcpy(wav + 12, "fmt ", 4);
-    *(uint32_t*)(wav + 16) = 16;
-    *(uint16_t*)(wav + 20) = 1;
-    *(uint16_t*)(wav + 22) = 2;
-    *(uint32_t*)(wav + 24) = sample_rate;
-    *(uint32_t*)(wav + 28) = sample_rate * 4;
-    *(uint16_t*)(wav + 32) = 4;
-    *(uint16_t*)(wav + 34) = 16;
-    memcpy(wav + 36, "data", 4);
-    *(uint32_t*)(wav + 40) = data_size;
-
-    memcpy(wav + 44, samples, data_size);
 
     SDL_IOStream* io = SDL_IOFromMem(wav, wav_size);
     if (io) {
@@ -1389,49 +1371,10 @@ void Game::play_wav(int16_t* samples, int num_samples, int sample_rate) {
 }
 
 void Game::play_croak(void){
-    int sample_rate = 44100;
-
-    // Palette modulation: hue of theme shifts the croak character
-    float palette_shift = 0.0f;  // 0=normal
-    switch (g_colorTheme) {
-        case 1: palette_shift = -0.2f; break;  // WARM: deeper
-        case 2: palette_shift =  0.3f; break;  // COOL: higher
-        case 3: palette_shift =  0.1f; break;  // NEON: slightly bright
-        case 4: palette_shift = -0.1f; break;  // MONO: slightly muted
-    }
-
-    float duration = 0.08f + (rand() % 80) * 0.001f;
-    int num_samples = (int)(sample_rate * duration);
-    float freq_start = (300.0f + rand() % 200) * (1.0f + palette_shift);
-    float freq_end = (80.0f + rand() % 60) * (1.0f + palette_shift * 0.5f);
-
-    vector<int16_t> buf(num_samples * 2);
-    float phase = 0.0f;
-    float harmonic_mix = (g_colorTheme == 3) ? 0.35f : 0.25f;  // NEON = more harmonics
-
-    for (int i = 0; i < num_samples; i++) {
-        float t = (float)i / num_samples;
-        float freq = lerp(freq_start, freq_end, t);
-
-        float env = 1.0f;
-        if (t < 0.05f) env = t / 0.05f;
-        else if (t > 0.7f) env = (1.0f - t) / 0.3f;
-
-        float sample = sinf(phase) * 0.6f
-                      + sinf(phase * 2.0f) * harmonic_mix
-                      + sinf(phase * 3.0f) * 0.1f;
-        sample += ((rand() % 1000) / 1000.0f - 0.5f) * 0.08f;
-        sample *= env * 0.5f;
-
-        int16_t s = (int16_t)(sample * 32000);
-        buf[i * 2] = s;
-        buf[i * 2 + 1] = s;
-
-        phase += 2.0f * M_PI * freq / sample_rate;
-        if (phase > 2.0f * M_PI) phase -= 2.0f * M_PI;
-    }
-
-    play_wav(buf.data(), num_samples, sample_rate);
+    if (music_mode == MUSIC_OFF) return;
+    auto buf = synth_croak(g_colorTheme);
+    int num_samples = (int)buf.size() / 2;
+    play_wav(buf.data(), num_samples, 44100);
 }
 
 void Game::apply_loot(Loot *loot){
@@ -1511,14 +1454,10 @@ void Game::handle_input(void){
         fireProjectile();
 
     // Touch controls (active alongside keyboard)
-    if (touchInput.state.joystick_x > 0)
+    if (touchInput.state.joystick_x != 0)
         ship->rotate(touchInput.state.joystick_x);
-    if (touchInput.state.joystick_x < 0)
-        ship->rotate(touchInput.state.joystick_x);
-    if (touchInput.state.joystick_y < 0)
-        ship->thrust(-touchInput.state.joystick_y);
-    if (touchInput.state.brake_pressed)
-        ship->brake(1);
+    if (touchInput.state.thrust_pressed)
+        ship->thrust(1);
     if (touchInput.state.fire_pressed)
         fireProjectile();
 }
@@ -1564,6 +1503,7 @@ void Game::draw_menu(void) {
 
     float cx = window_width / 2.0f;
     float cy = window_height / 2.0f;
+    float s = window_height / 1440.0f;  // scale factor
 
     SDL_Color white = {255, 255, 255, 255};
     SDL_Color gray = {128, 128, 128, 255};
@@ -1573,58 +1513,56 @@ void Game::draw_menu(void) {
     GameColor border_selected = map_rgb(100, 200, 255);
 
     // Title
-    draw_text_scaled("S H I P P Y", cx, cy - 180, white, 3.0f, true);
+    draw_text_scaled("S H I P P Y", cx, cy - 280 * s, white, 5.0f * s, true);
 
     // Difficulty row
-    float row_y = cy - 50;
+    float row_y = cy - 80 * s;
     {
         char buf[64];
         snprintf(buf, sizeof(buf), "<  %d  >", difficulty);
         SDL_Color col = (menu_selection == 0) ? highlight : white;
-        draw_text("Difficulty:", cx - 160, row_y + 4, col, false);
-        draw_text_scaled(buf, cx + 60, row_y, col, 1.2f, false);
+        draw_text_scaled("Difficulty:", cx - 240 * s, row_y + 6 * s, col, 1.8f * s, false);
+        draw_text_scaled(buf, cx + 90 * s, row_y, col, 2.0f * s, false);
 
-        // Store hit rect for this row
-        menu_rects[0] = {cx - 160, row_y, 320, 36};
+        menu_rects[0] = {cx - 240 * s, row_y, 500 * s, 54 * s};
     }
 
     // Music row
-    row_y = cy + 10;
+    row_y = cy + 20 * s;
     {
         SDL_Color col = (menu_selection == 1) ? highlight : white;
-        draw_text("Music:", cx - 160, row_y + 4, col, false);
+        draw_text_scaled("Music:", cx - 240 * s, row_y + 6 * s, col, 1.8f * s, false);
 
-        const char* on_text = music_on ? "[ON]" : " ON ";
-        const char* off_text = music_on ? " OFF " : "[OFF]";
-        SDL_Color on_col = music_on ? highlight : gray;
-        SDL_Color off_col = music_on ? gray : highlight;
-        if (menu_selection != 1) {
-            on_col = music_on ? white : gray;
-            off_col = music_on ? gray : white;
+        const char* labels[] = {"OFF", "CUSTOM", "ON"};
+        float opt_x[] = {cx - 60 * s, cx + 80 * s, cx + 280 * s};
+        for (int m = 0; m < 3; m++) {
+            bool active = ((int)music_mode == m);
+            char lbl[16];
+            snprintf(lbl, sizeof(lbl), active ? "[%s]" : " %s ", labels[m]);
+            SDL_Color mc = active ? (menu_selection == 1 ? highlight : white) : gray;
+            draw_text_scaled(lbl, opt_x[m], row_y + 6 * s, mc, 1.6f * s, false);
         }
-        draw_text(on_text, cx + 50, row_y + 4, on_col, false);
-        draw_text(off_text, cx + 120, row_y + 4, off_col, false);
 
-        menu_rects[1] = {cx - 160, row_y, 320, 36};
+        menu_rects[1] = {cx - 240 * s, row_y, 600 * s, 54 * s};
     }
 
     // Start button
-    row_y = cy + 80;
+    row_y = cy + 130 * s;
     {
-        float btn_w = 200, btn_h = 50;
+        float btn_w = 300 * s, btn_h = 70 * s;
         float btn_x = cx - btn_w / 2;
         float btn_y = row_y;
         GameColor border = (menu_selection == 2) ? border_selected : border_normal;
-        draw_rounded_rect(btn_x, btn_y, btn_x + btn_w, btn_y + btn_h, 10, 10, border, 2.0f);
+        draw_rounded_rect(btn_x, btn_y, btn_x + btn_w, btn_y + btn_h, 12 * s, 12 * s, border, 3.0f);
 
         SDL_Color col = (menu_selection == 2) ? highlight : white;
-        draw_text_scaled("S T A R T", cx, btn_y + 8, col, 1.2f, true);
+        draw_text_scaled("S T A R T", cx, btn_y + 12 * s, col, 2.0f * s, true);
 
         menu_rects[2] = {btn_x, btn_y, btn_w, btn_h};
     }
 
     // Nav hint
-    draw_text("arrows / tap to navigate    enter to select", cx, cy + 170, gray, true);
+    draw_text_scaled("arrows / tap to navigate    enter to select", cx, cy + 260 * s, gray, 1.2f * s, true);
 
     g_camera_zoom = save_zoom;
     g_camera_x = save_cx_cam;
@@ -1694,17 +1632,17 @@ void Game::handle_menu_event(const SDL_Event& event) {
             case SDL_SCANCODE_LEFT:
             case SDL_SCANCODE_A:
                 if (menu_selection == 0 && difficulty > 0) difficulty--;
-                if (menu_selection == 1) music_on = !music_on;
+                if (menu_selection == 1) music_mode = (MusicMode)((music_mode + 1) % 3);
                 break;
             case SDL_SCANCODE_RIGHT:
             case SDL_SCANCODE_D:
                 if (menu_selection == 0 && difficulty < 10) difficulty++;
-                if (menu_selection == 1) music_on = !music_on;
+                if (menu_selection == 1) music_mode = (MusicMode)((music_mode + 1) % 3);
                 break;
             case SDL_SCANCODE_RETURN:
             case SDL_SCANCODE_SPACE:
                 if (menu_selection == 1) {
-                    music_on = !music_on;
+                    music_mode = (MusicMode)((music_mode + 1) % 3);
                 } else if (menu_selection == 2) {
                     init_game();
                     state = STATE_PLAYING;
@@ -1740,7 +1678,7 @@ void Game::handle_menu_event(const SDL_Event& event) {
                     // Cycle difficulty on tap
                     difficulty = (difficulty + 1) % 11;
                 } else if (i == 1) {
-                    music_on = !music_on;
+                    music_mode = (MusicMode)((music_mode + 1) % 3);
                 } else if (i == 2) {
                     init_game();
                     state = STATE_PLAYING;
@@ -1961,10 +1899,10 @@ void Game::shutdown(void){
     if (font)
         TTF_CloseFont(font);
 
-    if (sfx_track)
-        MIX_DestroyTrack(sfx_track);
-    if (sfx_audio)
-        MIX_DestroyAudio(sfx_audio);
+    for (int i = 0; i < SFX_TRACK_COUNT; i++) {
+        if (sfx_tracks[i]) MIX_DestroyTrack(sfx_tracks[i]);
+        if (sfx_audios[i]) MIX_DestroyAudio(sfx_audios[i]);
+    }
 
     if (music_track)
         MIX_DestroyTrack(music_track);
