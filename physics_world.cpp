@@ -88,6 +88,41 @@ b2BodyId PhysicsWorld::createBody(Object* obj, PhysicsBodyType type, float densi
     return bodyId;
 }
 
+b2BodyId PhysicsWorld::createCircleBody(Object* obj, PhysicsBodyType type, float radius,
+                                        float density, float friction, float restitution) {
+    if (!initialized) return b2_nullBodyId;
+
+    b2BodyDef bodyDef = b2DefaultBodyDef();
+    bodyDef.position = {toMeters(obj->pos.x), toMeters(obj->pos.y)};
+
+    switch (type) {
+        case PhysicsBodyType::DYNAMIC:  bodyDef.type = b2_dynamicBody; break;
+        case PhysicsBodyType::STATIC:
+        case PhysicsBodyType::SENSOR:   bodyDef.type = b2_staticBody; break;
+        case PhysicsBodyType::KINEMATIC: bodyDef.type = b2_kinematicBody; break;
+    }
+
+    b2BodyId bodyId = b2CreateBody(worldId, &bodyDef);
+    b2Body_SetUserData(bodyId, obj);
+
+    b2ShapeDef shapeDef = b2DefaultShapeDef();
+    shapeDef.density = density;
+    shapeDef.material.friction = friction;
+    shapeDef.material.restitution = restitution;
+    shapeDef.userData = obj;
+
+    if (type == PhysicsBodyType::DYNAMIC) {
+        shapeDef.enableSensorEvents = true;
+        shapeDef.enableContactEvents = true;
+        shapeDef.enableHitEvents = true;
+    }
+
+    b2Circle circle = {{0.0f, 0.0f}, toMeters(radius)};
+    b2CreateCircleShape(bodyId, &shapeDef, &circle);
+
+    return bodyId;
+}
+
 void PhysicsWorld::destroyBody(b2BodyId bodyId) {
     if (b2Body_IsValid(bodyId)) {
         b2DestroyBody(bodyId);

@@ -23,6 +23,7 @@ public:
     void destroy();
 
     b2BodyId createBody(Object* obj, PhysicsBodyType type, float density = 1.0f, float friction = 0.3f, float restitution = 0.1f);
+    b2BodyId createCircleBody(Object* obj, PhysicsBodyType type, float radius, float density = 1.0f, float friction = 0.3f, float restitution = 0.1f);
     void destroyBody(b2BodyId bodyId);
     void enableBody(b2BodyId bodyId);
     void disableBody(b2BodyId bodyId);

@@ -6,14 +6,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <time.h>
 #include <cstring>
+#include <algorithm>
 
 #include "defines.h"
 #include "game.h"
 #include "space.h"
 #include "ship.h"
 #include "loot.h"
-#include "synth.h"
+#include "pdaudio.h"
 #include "body.h"
 #include "starfield.h"
 #include "sdl_compat.h"
@@ -30,11 +32,6 @@ Game::Game()
  chunk_w(0), chunk_h(0),
  camera_x(0), camera_y(0), camera_zoom(1.0f), camera_target_zoom(1.0f),
  camera_target_x(0), camera_target_y(0){
-    for (int i = 0; i < SFX_TRACK_COUNT; i++) {
-        sfx_tracks[i] = nullptr;
-        sfx_audios[i] = nullptr;
-        sfx_dirty[i] = false;
-    }
 }
 
 Game::~Game(){
@@ -92,11 +89,6 @@ void Game::init_graphics(void){
     mixer = MIX_CreateMixerDevice(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec);
     if (!mixer)
         abort("Failed to create SDL_mixer device");
-
-    // Create per-role SFX tracks for looping impact sounds
-    for (int i = 0; i < SFX_TRACK_COUNT; i++) {
-        sfx_tracks[i] = MIX_CreateTrack(mixer);
-    }
 
     // Create window
 #ifdef SDL_PLATFORM_ANDROID
@@ -182,6 +174,9 @@ void Game::init_game(void){
     projectiles.clear();
     loaded_chunks.clear();
 
+    // Fresh world seed per restart so chunk content differs between runs.
+    world_seed = (unsigned int)time(NULL);
+
     biases_groked.clear();
     lastFireTime = 0;
     lastFireTapTime = 0;
@@ -195,9 +190,7 @@ void Game::init_game(void){
     g_trippyLevel = 0;
     g_tracerLength = 0;
     g_hueShift = 0.0f;
-    synth_music_init(musicState);
     particles.clear();
-    clearAllSfxLoops();
     chunk_w = window_width;
     chunk_h = window_height;
 
@@ -242,7 +235,8 @@ void Game::load_chunk(int cx, int cy) {
 
     // Seed RNG deterministically for this chunk
     unsigned int saved = rand();
-    srand((unsigned int)(cx * 73856093u) ^ (unsigned int)(cy * 19349663u) ^ (unsigned int)(difficulty * 83492791u));
+    srand((unsigned int)(cx * 73856093u) ^ (unsigned int)(cy * 19349663u)
+          ^ (unsigned int)(difficulty * 83492791u) ^ world_seed);
 
     SpaceTraits traits = generateTraitsForChunk(cx, cy, difficulty);
 
@@ -257,7 +251,10 @@ void Game::load_chunk(int cx, int cy) {
     // Spawn bodies
     for (int i = 0; i < traits.numBodies; i++) {
         float w = MIN_BODY_SIZE + rand() % MAX_BODY_SIZE;
-        float h = MIN_BODY_SIZE + rand() % MAX_BODY_SIZE;
+        // Keep h within 70-130% of w so bodies stay near-circular
+        // (eccentricity capped at ~0.71 instead of uncapped).
+        float ratio = 0.7f + (rand() % 61) / 100.0f;
+        float h = w * ratio;
         float px = base_x + (rand() % (int)(chunk_w - w/2));
         float py = base_y + (rand() % (int)(chunk_h - h/2));
 
@@ -285,48 +282,127 @@ void Game::load_chunk(int cx, int cy) {
         world_bodies.push_back(body);
     }
 
-    // Spawn loot — push first, then init physics on the list element
-    for (int i = 0; i < traits.numFuel; i++) {
-        float fuel_value = 100 + rand() % (int)FUEL_START/2;
-        float fuel_scale = (fuel_value - 100) / 5000.0f;
-        float w = 15 + fuel_scale * 20;
-        float h = 22 + fuel_scale * 30;
-        float px = base_x + rand() % chunk_w;
-        float py = base_y + rand() % chunk_h;
-        world_loots.emplace_back(px, py, w, h, map_rgb(255, 20, 20), FUEL);
+    // Spawn loot in structured patterns around bodies
+    // Fuel: orbital rings around bodies
+    // Mushrooms: clustered close to bodies
+    // Boosts: scattered far from bodies (open space)
+
+    auto spawnLoot = [&](float px, float py, float w, float h, GameColor color,
+                         LootType type, float value) {
+        world_loots.emplace_back(px, py, w, h, color, type);
         Loot& loot = world_loots.back();
-        loot.value = fuel_value;
+        loot.value = value;
         loot.chunk_cx = cx;
         loot.chunk_cy = cy;
         loot.initPhysics(physicsWorld);
+    };
+
+    // Fuel: orbit around bodies in rings
+    {
+        int fuel_per_body = (chunk.bodies.size() > 0) ?
+            std::max(1, traits.numFuel / (int)chunk.bodies.size()) : traits.numFuel;
+        int fuel_placed = 0;
+
+        for (auto* body : chunk.bodies) {
+            if (fuel_placed >= traits.numFuel) break;
+            float orbit_r = (body->width2 + body->height2) / 2.0f + 40.0f + rand() % 40;
+            int count = std::min(fuel_per_body, traits.numFuel - fuel_placed);
+            float angle_offset = (rand() % 360) * M_PI / 180.0f;
+
+            for (int i = 0; i < count; i++) {
+                float angle = angle_offset + i * 2.0f * M_PI / count;
+                float fuel_value = 100 + rand() % (int)FUEL_START/2;
+                float fuel_scale = (fuel_value - 100) / 5000.0f;
+                float w = 15 + fuel_scale * 20;
+                float h = 22 + fuel_scale * 30;
+                float px = body->pos.x + cosf(angle) * orbit_r;
+                float py = body->pos.y + sinf(angle) * orbit_r;
+                spawnLoot(px, py, w, h, map_rgb(255, 20, 20), FUEL, fuel_value);
+                fuel_placed++;
+            }
+        }
+        // Any remaining fuel if no bodies
+        for (int i = fuel_placed; i < traits.numFuel; i++) {
+            float fuel_value = 100 + rand() % (int)FUEL_START/2;
+            float fuel_scale = (fuel_value - 100) / 5000.0f;
+            float w = 15 + fuel_scale * 20;
+            float h = 22 + fuel_scale * 30;
+            spawnLoot(base_x + rand() % chunk_w, base_y + rand() % chunk_h,
+                      w, h, map_rgb(255, 20, 20), FUEL, fuel_value);
+        }
     }
+
+    // Mushrooms: clustered close to bodies (on the surface or just outside)
+    {
+        int shroom_placed = 0;
+        for (auto* body : chunk.bodies) {
+            if (shroom_placed >= traits.numMushroom) break;
+            float body_r = (body->width2 + body->height2) / 2.0f;
+            float close_r = body_r + 15.0f + rand() % 20;
+            float angle = (rand() % 360) * M_PI / 180.0f;
+
+            float shroom_value = 1 + rand() % 3;
+            float shroom_scale = (shroom_value - 1) / 2.0f;
+            float w = 40 + shroom_scale * 30;
+            float h = w * 1.2f;
+            float px = body->pos.x + cosf(angle) * close_r;
+            float py = body->pos.y + sinf(angle) * close_r;
+            spawnLoot(px, py, w, h, map_rgb(180, 50, 220), MUSHROOM, shroom_value);
+            shroom_placed++;
+        }
+        // Any remaining mushrooms near random bodies
+        for (int i = shroom_placed; i < traits.numMushroom; i++) {
+            if (!chunk.bodies.empty()) {
+                Body* body = chunk.bodies[rand() % chunk.bodies.size()];
+                float body_r = (body->width2 + body->height2) / 2.0f;
+                float close_r = body_r + 15.0f + rand() % 25;
+                float angle = (rand() % 360) * M_PI / 180.0f;
+                float shroom_value = 1 + rand() % 3;
+                float shroom_scale = (shroom_value - 1) / 2.0f;
+                float w = 40 + shroom_scale * 30;
+                float h = w * 1.2f;
+                spawnLoot(body->pos.x + cosf(angle) * close_r,
+                          body->pos.y + sinf(angle) * close_r,
+                          w, h, map_rgb(180, 50, 220), MUSHROOM, shroom_value);
+            } else {
+                float shroom_value = 1 + rand() % 3;
+                float shroom_scale = (shroom_value - 1) / 2.0f;
+                float w = 40 + shroom_scale * 30;
+                float h = w * 1.2f;
+                spawnLoot(base_x + rand() % chunk_w, base_y + rand() % chunk_h,
+                          w, h, map_rgb(180, 50, 220), MUSHROOM, shroom_value);
+            }
+        }
+    }
+
+    // Boosts: scattered in open space, far from bodies
     for (int i = 0; i < traits.numBoost; i++) {
         float boost_value = rand() % 5 + 2;
         float boost_scale = (boost_value - 2) / 4.0f;
         float w = 25 + boost_scale * 30;
         float h = w;
-        float px = base_x + rand() % chunk_w;
-        float py = base_y + rand() % chunk_h;
-        world_loots.emplace_back(px, py, w, h, map_rgb(255, 200, 20), BOOST);
-        Loot& loot = world_loots.back();
-        loot.value = boost_value;
-        loot.chunk_cx = cx;
-        loot.chunk_cy = cy;
-        loot.initPhysics(physicsWorld);
-    }
-    for (int i = 0; i < traits.numMushroom; i++) {
-        float shroom_value = 1 + rand() % 3;  // trippy level 1-3
-        float shroom_scale = (shroom_value - 1) / 2.0f;
-        float w = 40 + shroom_scale * 30;
-        float h = w * 1.2f;
-        float px = base_x + rand() % chunk_w;
-        float py = base_y + rand() % chunk_h;
-        world_loots.emplace_back(px, py, w, h, map_rgb(180, 50, 220), MUSHROOM);
-        Loot& loot = world_loots.back();
-        loot.value = shroom_value;
-        loot.chunk_cx = cx;
-        loot.chunk_cy = cy;
-        loot.initPhysics(physicsWorld);
+
+        // Try to place far from any body
+        float best_px = base_x + rand() % chunk_w;
+        float best_py = base_y + rand() % chunk_h;
+        float best_dist = 0;
+        for (int attempt = 0; attempt < 8; attempt++) {
+            float px = base_x + rand() % chunk_w;
+            float py = base_y + rand() % chunk_h;
+            float min_dist = 1e9f;
+            for (auto* body : chunk.bodies) {
+                float dx = px - body->pos.x;
+                float dy = py - body->pos.y;
+                float d = sqrtf(dx*dx + dy*dy) - (body->width2 + body->height2) / 2.0f;
+                if (d < min_dist) min_dist = d;
+            }
+            if (min_dist > best_dist) {
+                best_dist = min_dist;
+                best_px = px;
+                best_py = py;
+            }
+        }
+        spawnLoot(best_px, best_py, w, h, map_rgb(255, 200, 20), BOOST, boost_value);
     }
 
     // Spawn duders
@@ -490,6 +566,7 @@ void Game::draw_hud(void){
     g_camera_x = g_screen_cx;
     g_camera_y = g_screen_cy;
     draw_info();
+    draw_sound_labels();
 #ifdef SDL_PLATFORM_ANDROID
     touchInput.draw();
 #endif
@@ -518,9 +595,7 @@ void Game::update_game(void){
         if (g_colorThemeBlend > 1.0f) g_colorThemeBlend = 1.0f;
     }
 
-    // Tick music state
     float dt = 1.0f / 60.0f;
-    synth_music_tick(musicState, dt);
 
     // Decay loot effect timers
     if (trippyTimer > 0.0f) {
@@ -567,8 +642,6 @@ void Game::update_game(void){
         duder.update(chunk_w, chunk_h, ship->pos.x, ship->pos.y, ship->vel.x, ship->vel.y);
 
     updateParticles();
-    for (int i = 0; i < SFX_TRACK_COUNT; i++)
-        rebuildSfxLoop(i);
 
     // Load/unload chunks AFTER physics+collisions to avoid stale pointers
     update_chunks();
@@ -674,85 +747,53 @@ void Game::launchDuder(void) {
 void Game::play_impact_sound(Object* obj, GameColor color, SynthRole role) {
     if (music_mode != MUSIC_CUSTOM) return;
 
-    // Get instantaneous (theme/trippy-transformed) color HSV
     GameColor tc = transform_color(color);
     float hue, sat, val;
     rgb_to_hsv(tc.r, tc.g, tc.b, hue, sat, val);
-    float obj_size = sqrtf(obj->width2 * obj->width2 + obj->height2 * obj->height2);
 
-    SynthParams params = synth_from_color(hue, sat, val, obj_size, g_colorTheme, role, musicState, (float)g_trippyLevel);
-    params.reverb_amount = std::min(1.0f, g_tracerLength / 80.0f);
-    auto buf = synth_generate(params);
-    int num_samples = (int)buf.size() / 2;
-
-    // Play immediately
-    play_wav(buf.data(), num_samples, 44100);
-
-    // Mix/overlay into the per-role loop buffer, quantized to 16th note grid
-    int tidx = roleToTrack(role);
-    float beat_len = 60.0f / musicState.bpm;
-    int loop_samples = (int)(beat_len * 4 * 44100) * 2;  // 4 beats, stereo
-    if (loop_samples < 44100) loop_samples = 44100 * 2;
-    if ((int)sfx_buffers[tidx].size() != loop_samples) {
-        sfx_buffers[tidx].assign(loop_samples, 0);
-    }
-
-    // Quantize write position to nearest 16th note
-    int sixteenth = loop_samples / 16;
-    int quantized_pos = ((int)(musicState.beat_time * 44100 * 2) % loop_samples);
-    quantized_pos = (quantized_pos / sixteenth) * sixteenth;
-
-    // Mix new samples into the role's loop buffer
-    for (int i = 0; i < (int)buf.size() && i < loop_samples; i++) {
-        int idx = (quantized_pos + i) % loop_samples;
-        int32_t mixed = (int32_t)sfx_buffers[tidx][idx] + (int32_t)buf[i];
-        sfx_buffers[tidx][idx] = (int16_t)std::clamp(mixed, (int32_t)-32000, (int32_t)32000);
-    }
-    sfx_dirty[tidx] = true;
-}
-
-void Game::rebuildSfxLoop(int track_idx) {
-    if (!sfx_dirty[track_idx] || !sfx_tracks[track_idx] || sfx_buffers[track_idx].empty()) return;
-    sfx_dirty[track_idx] = false;
-
-    MIX_StopTrack(sfx_tracks[track_idx], 0);
-    if (sfx_audios[track_idx]) { MIX_DestroyAudio(sfx_audios[track_idx]); sfx_audios[track_idx] = nullptr; }
-
-    int num_samples = (int)sfx_buffers[track_idx].size() / 2;
-    int wav_size = 0;
-    uint8_t* wav = synth_build_wav(sfx_buffers[track_idx].data(), num_samples, 44100, &wav_size);
-    if (!wav) return;
-
-    SDL_IOStream* io = SDL_IOFromMem(wav, wav_size);
-    if (io) {
-        sfx_audios[track_idx] = MIX_LoadAudio_IO(mixer, io, true, true);
-        if (sfx_audios[track_idx]) {
-            MIX_SetTrackAudio(sfx_tracks[track_idx], sfx_audios[track_idx]);
-            SDL_PropertiesID props = SDL_CreateProperties();
-            SDL_SetNumberProperty(props, MIX_PROP_PLAY_LOOPS_NUMBER, -1);
-            MIX_PlayTrack(sfx_tracks[track_idx], props);
-            SDL_DestroyProperties(props);
-        }
-    }
-    SDL_free(wav);
-}
-
-int Game::roleToTrack(SynthRole role) {
+    const char* recv = "impact-mid";
+    float basePitch = 60.0f;
     switch (role) {
-        case SynthRole::BASS:    return 0;
-        case SynthRole::MID:     return 1;
-        case SynthRole::HIHAT:   return 2;
-        case SynthRole::GENERAL: return 3;
+        case SynthRole::BASS:    recv = "impact-bass";    basePitch = 36.0f; break;
+        case SynthRole::MID:     recv = "impact-mid";     basePitch = 60.0f; break;
+        case SynthRole::HIHAT:   recv = "impact-hihat";   basePitch = 0.0f;  break;
+        case SynthRole::GENERAL: recv = "impact-general"; basePitch = 48.0f; break;
     }
-    return 3;
+    float pitch = basePitch + hue * 24.0f;
+    pd_send_float(recv, pitch);
+
+    char buf[64];
+    snprintf(buf, sizeof(buf), "%s  %.0f", recv, pitch);
+    log_sound_trigger(buf);
 }
 
-void Game::clearAllSfxLoops(void) {
-    for (int i = 0; i < SFX_TRACK_COUNT; i++) {
-        sfx_buffers[i].clear();
-        sfx_dirty[i] = false;
-        if (sfx_tracks[i]) MIX_StopTrack(sfx_tracks[i], 0);
-        if (sfx_audios[i]) { MIX_DestroyAudio(sfx_audios[i]); sfx_audios[i] = nullptr; }
+void Game::log_sound_trigger(const char* name) {
+    recent_sounds.push_back({std::string(name), SDL_GetTicks()});
+    if (recent_sounds.size() > 12) {
+        recent_sounds.erase(recent_sounds.begin(),
+                            recent_sounds.begin() + (recent_sounds.size() - 12));
+    }
+}
+
+void Game::draw_sound_labels(void) {
+    const Uint64 LIFETIME_MS = 1500;
+    Uint64 now = SDL_GetTicks();
+    recent_sounds.erase(
+        std::remove_if(recent_sounds.begin(), recent_sounds.end(),
+            [&](const SoundLabel& s){ return now - s.start_ms > LIFETIME_MS; }),
+        recent_sounds.end());
+
+    float s = std::min(window_width, window_height) / 720.0f;
+    float x = 20.0f * s;
+    float y_base = 20.0f * s;
+    int i = 0;
+    for (auto it = recent_sounds.rbegin(); it != recent_sounds.rend(); ++it, ++i) {
+        Uint64 age = now - it->start_ms;
+        float alpha_f = 1.0f - (float)age / (float)LIFETIME_MS;
+        if (alpha_f < 0) alpha_f = 0;
+        Uint8 a = (Uint8)(alpha_f * 255);
+        SDL_Color col = {220, 240, 255, a};
+        draw_text_scaled(it->name.c_str(), x, y_base + i * 18.0f * s, col, 1.0f * s, false);
     }
 }
 
@@ -1023,23 +1064,29 @@ void Game::processCollisions(void) {
         // Only process if projectile is in current space
         if (projectileObj && duderObj && !duderObj->is_killed && !projectileObj->isExpired()
             ) {
-            bool projectileMarked = false;
-            for (Projectile* p : projectilesToDestroy) {
-                if (p == projectileObj) { projectileMarked = true; break; }
-            }
+            if (duderObj->is_launched) {
+                // Launched duders can be killed by bullets
+                duderObj->is_killed = true;
+                physicsWorld.disableBody(duderObj->physicsBody);
 
-            // Kill the duder and assign a random bias
-            auto it = std::next(biases.biases.begin(), duderObj->random_val % biases.biases.size());
-            duderObj->bias = &(*it);
-            duderObj->is_killed = true;
-            physicsWorld.disableBody(duderObj->physicsBody);
-            biases_groked.insert(duderObj->bias->first);
-
-            // Destroy the projectile
-            if (!projectileMarked) {
-                projectileObj->expired = true;
-                projectilesToDestroy.push_back(projectileObj);
+                bool projectileMarked = false;
+                for (Projectile* p : projectilesToDestroy) {
+                    if (p == projectileObj) { projectileMarked = true; break; }
+                }
+                if (!projectileMarked) {
+                    projectileObj->expired = true;
+                    projectilesToDestroy.push_back(projectileObj);
+                }
+            } else if (!duderObj->is_following) {
+                // Free duders get captured by bullets (same as ship touch)
+                auto it = std::next(biases.biases.begin(), duderObj->random_val % biases.biases.size());
+                duderObj->bias = &(*it);
+                duderObj->encounter_pos = duderObj->pos;
+                duderObj->is_following = true;
+                biases_groked.insert(duderObj->bias->first);
+                play_croak();
             }
+            // Already-following duders: bullets pass through (no effect)
         }
 
         // Ship-asteroid collision: damage ship (lose fuel)
@@ -1076,9 +1123,6 @@ void Game::processCollisions(void) {
                                    cuzerObj->getRadius(), cuzerObj->getColor(),
                                    20 + (int)(cuzerObj->getRadius() * 0.8f));
                     cuzersToDestroy.push_back(cuzerObj);
-
-                    // Clear all SFX loops when a cuzer is killed by bullets
-                    clearAllSfxLoops();
                 }
             }
             if (!projectileMarked) {
@@ -1097,7 +1141,7 @@ void Game::processCollisions(void) {
             }
             ship->fuel -= damage;
             if (ship->fuel < 0) ship->fuel = 0;
-            play_impact_sound(cuzerObj, cuzerObj->getColor(), SynthRole::MID);
+            play_impact_sound(cuzerObj, cuzerObj->getColor(), SynthRole::BASS);
         }
 
         // Ship-body collision: play bass sound
@@ -1354,27 +1398,10 @@ void Game::drawParticles(void) {
     }
 }
 
-void Game::play_wav(int16_t* samples, int num_samples, int sample_rate) {
-    int wav_size = 0;
-    uint8_t* wav = synth_build_wav(samples, num_samples, sample_rate, &wav_size);
-    if (!wav) return;
-
-    SDL_IOStream* io = SDL_IOFromMem(wav, wav_size);
-    if (io) {
-        MIX_Audio* audio = MIX_LoadAudio_IO(mixer, io, true, true);
-        if (audio) {
-            MIX_PlayAudio(mixer, audio);
-            MIX_DestroyAudio(audio);
-        }
-    }
-    SDL_free(wav);
-}
-
 void Game::play_croak(void){
     if (music_mode == MUSIC_OFF) return;
-    auto buf = synth_croak(g_colorTheme);
-    int num_samples = (int)buf.size() / 2;
-    play_wav(buf.data(), num_samples, 44100);
+    pd_send_float("impact-general", 55.0f);
+    log_sound_trigger("croak  55");
 }
 
 void Game::apply_loot(Loot *loot){
@@ -1834,6 +1861,14 @@ SDL_AppResult Game::iterate(void) {
             handle_input();
             update_game();
 
+            // Fuel-driven tension: 0 when full, 1 when empty.
+            if (ship) {
+                float tension = 1.0f - ship->fuel / (float)FUEL_START;
+                if (tension < 0.0f) tension = 0.0f;
+                if (tension > 1.0f) tension = 1.0f;
+                pd_send_float("tension", tension);
+            }
+
             // Render the game frame to buffer
             if (g_tracerLength > 0) {
                 Uint8 trailAlpha = 200 + ((g_tracerLength - 5) * 45) / 95;
@@ -1898,11 +1933,6 @@ void Game::shutdown(void){
 
     if (font)
         TTF_CloseFont(font);
-
-    for (int i = 0; i < SFX_TRACK_COUNT; i++) {
-        if (sfx_tracks[i]) MIX_DestroyTrack(sfx_tracks[i]);
-        if (sfx_audios[i]) MIX_DestroyAudio(sfx_audios[i]);
-    }
 
     if (music_track)
         MIX_DestroyTrack(music_track);

@@ -13,6 +13,32 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(box2d)
 
+# Fetch libpd (desktop only for now — Android integration is a follow-up plan)
+if(NOT ANDROID)
+    set(PD_UTILS OFF CACHE BOOL "" FORCE)
+    set(PD_EXTRA ON CACHE BOOL "" FORCE)
+    set(PD_MULTI OFF CACHE BOOL "" FORCE)
+    # libpd's root CMakeLists still targets an older CMake; allow it to configure.
+    set(CMAKE_POLICY_VERSION_MINIMUM 3.5 CACHE STRING "" FORCE)
+    FetchContent_Declare(
+        libpd
+        GIT_REPOSITORY https://github.com/libpd/libpd.git
+        GIT_TAG 0.14.1
+        GIT_SUBMODULES_RECURSE TRUE
+    )
+    FetchContent_MakeAvailable(libpd)
+
+    # Pure Data's C code predates modern Clang's strict default of treating
+    # implicit-function-declaration as an error (for alloca in x_file.c, etc.).
+    foreach(_pd_tgt libpd libpd_static)
+        if(TARGET ${_pd_tgt})
+            target_compile_options(${_pd_tgt} PRIVATE
+                -Wno-error=implicit-function-declaration
+                -Wno-implicit-function-declaration)
+        endif()
+    endforeach()
+endif()
+
 if(ANDROID)
     # On Android, fetch SDL3 libraries from source
     FetchContent_Declare(
@@ -73,7 +99,7 @@ set(SOURCES
     ai.cpp
     platform.cpp
     touch_input.cpp
-    synth.cpp
+    pdaudio.cpp
 )
 
 if(ANDROID)
@@ -92,5 +118,10 @@ else()
         SDL3_ttf::SDL3_ttf
         SDL3_mixer::SDL3_mixer
         box2d
+        libpd_static
+    )
+    target_include_directories(shippy PRIVATE
+        ${libpd_SOURCE_DIR}/libpd_wrapper
+        ${libpd_SOURCE_DIR}/pure-data/src
     )
 endif()

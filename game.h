@@ -10,7 +10,6 @@
 #include <map>
 #include "ship.h"
 #include "loot.h"
-#include "synth.h"
 #include "space.h"
 #include "biases.h"
 #include "duder.h"
@@ -27,6 +26,14 @@ enum GameState {
     STATE_MENU,
     STATE_PLAYING,
     STATE_PAUSED
+};
+
+// Impact classification — picks which libpd voice fires.
+enum class SynthRole {
+    BASS,
+    HIHAT,
+    MID,
+    GENERAL,
 };
 
 class Game{
@@ -48,6 +55,7 @@ class Game{
     int difficulty;
     MusicMode music_mode;
     float fullscreen;
+    unsigned int world_seed;
 
     private:
     // Core update
@@ -68,7 +76,6 @@ class Game{
     void apply_loot(Loot *loot);
     void play_croak(void);
     void play_impact_sound(Object* obj, GameColor color, SynthRole role = SynthRole::GENERAL);
-    void play_wav(int16_t* samples, int num_samples, int sample_rate);
     void launchDuder(void);
     void processCollisions(void);
     void applyGravityWells(void);
@@ -88,6 +95,14 @@ class Game{
     void handle_pause_event(const SDL_Event& event);
     void draw_text(const char* text, float x, float y, SDL_Color color, bool center = false);
     void draw_text_scaled(const char* text, float x, float y, SDL_Color color, float scale, bool center = false);
+    void draw_sound_labels(void);
+
+    struct SoundLabel {
+        std::string name;
+        Uint64 start_ms;
+    };
+    std::vector<SoundLabel> recent_sounds;
+    void log_sound_trigger(const char* name);
 
     GameState state;
     int menu_selection;
@@ -102,15 +117,6 @@ class Game{
     MIX_Mixer* mixer;
     MIX_Audio* music_audio;
     MIX_Track* music_track;
-    // Per-role loop tracks (bass, mid, hihat, general)
-    static const int SFX_TRACK_COUNT = 4;
-    MIX_Track* sfx_tracks[SFX_TRACK_COUNT];
-    MIX_Audio* sfx_audios[SFX_TRACK_COUNT];
-    vector<int16_t> sfx_buffers[SFX_TRACK_COUNT];
-    bool sfx_dirty[SFX_TRACK_COUNT];
-    void rebuildSfxLoop(int track_idx);
-    void clearAllSfxLoops(void);
-    int roleToTrack(SynthRole role);
     SDL_Texture* buffer;
     SDL_Texture* trailBuffer;
 
@@ -154,9 +160,6 @@ class Game{
     float camera_zoom;
     float camera_target_zoom;
     float camera_target_x, camera_target_y;
-
-    // Music state
-    MusicState musicState;
 
     // Loot effect timers (seconds remaining)
     float trippyTimer;

@@ -1,10 +1,17 @@
 #ifndef _BODY_H_
 #define _BODY_H_
 
+#include <vector>
 #include "sdl_compat.h"
 #include "object.h"
 
 class PhysicsWorld;
+
+struct Crater {
+    float angle;    // position on surface (radians)
+    float dist;     // distance from center (fraction of radius)
+    float radius;   // crater size
+};
 
 class Body : public Object{
 
@@ -16,11 +23,16 @@ class Body : public Object{
     void draw(void);
     void initPhysics(PhysicsWorld& world) override;
 
-    int round;
     GameColor color;
     float density;
-    float gravityStrength;  // 0 = normal body, >0 = gravity well (attracts other objects)
+    float gravityStrength;
     bool isGravityWell;
+
+    private:
+    static const int NUM_EDGE_VERTS = 32;
+    float edgeRadii[NUM_EDGE_VERTS]; // jagged edge: radius multiplier per vertex
+    float rotation;                   // random rotation angle
+    std::vector<Crater> craters;
 };
 
 

@@ -4,6 +4,7 @@
 #include <time.h>
 #include <stdlib.h>
 #include "game.h"
+#include "pdaudio.h"
 
 static Game* game = nullptr;
 
@@ -16,6 +17,7 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
     game->fullscreen = 1.0f;
 
     game->init_graphics();
+    pd_init();
     *appstate = game;
     return SDL_APP_CONTINUE;
 }
@@ -29,6 +31,7 @@ SDL_AppResult SDL_AppIterate(void* appstate) {
 }
 
 void SDL_AppQuit(void* appstate, SDL_AppResult result) {
+    pd_shutdown();
     if (game) {
         game->shutdown();
         delete game;
